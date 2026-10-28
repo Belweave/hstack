@@ -1,7 +1,16 @@
 ---
 title: Changelog
-description: HStack 0.2.0. Optional Hermes hooks, a consent gate for outside stacks, and the same 204-token idle index.
+description: HStack 0.2.1. Frozen release archives, deterministic builds, and config backups that survive uninstall.
 ---
+
+## 0.2.1
+
+28 October 2026.
+
+- `/dl/hstack-v0.2.0.tar.gz` is the archive that hstack.sh already served. The build copies those bytes and does not rebuild them. The latest alias is 0.2.1.
+- New archives use a fixed mtime, sorted names, numeric owner 0, and `gzip -n`. Two builds of the same tree produce the same sha256.
+- `--uninstall` keeps `config.yaml` backups in `$HERMES_HOME/hstack-backups/`. It no longer stores them under `$HERMES_HOME/hstack/`, which uninstall removes.
+- Idle index stays 204.
 
 ## 0.2.0
 

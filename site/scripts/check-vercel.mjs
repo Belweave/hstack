@@ -203,7 +203,7 @@ try {
     if (!response.body.startsWith("#!/bin/sh") || /<!doctype|<html/i.test(response.body)) fail(`${urlPath} body`);
     if (!String(response.headers["cache-control"] || "").includes("max-age=60")) fail(`${urlPath} cache header`);
   }
-  for (const urlPath of ["/dl/hstack.tar.gz", "/dl/hstack-v0.1.0.tar.gz", "/dl/hstack-v0.2.0.tar.gz"]) {
+  for (const urlPath of ["/dl/hstack.tar.gz", "/dl/hstack-v0.1.0.tar.gz", "/dl/hstack-v0.2.0.tar.gz", "/dl/hstack-v0.2.1.tar.gz"]) {
     const response = await request(urlPath, { Host: "127.0.0.1" });
     if (response.status !== 200 || response.headers["content-type"] !== "application/gzip") {
       fail(`${urlPath} ${response.status} ${response.headers["content-type"]}`);

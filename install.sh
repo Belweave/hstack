@@ -446,7 +446,7 @@ if find "$SRC" \( -type l -o -type b -o -type c -o -type p -o -type s \) -print 
   die "refusing to copy a link or special file from the skill tree"
 fi
 
-ver=0.2.0
+ver=0.2.1
 if [ -n "$ADDON_ROOT" ] && [ -f "$ADDON_ROOT/VERSION" ]; then
   got=$(tr -cd '0-9.' < "$ADDON_ROOT/VERSION")
   if [ -n "$got" ]; then

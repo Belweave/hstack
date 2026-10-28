@@ -291,8 +291,8 @@ def check_skills() -> dict[str, int]:
             fail(f"{name}: description must be one sentence of at most 60 characters")
         if clip_description(desc) != desc or clip_description_stable(desc) != desc:
             fail(f"{name}: Hermes would clip the description")
-        if meta.get("version") != "0.2.0":
-            fail(f"{name}: version must be 0.2.0")
+        if meta.get("version") != "0.2.1":
+            fail(f"{name}: version must be 0.2.1")
         if meta.get("license") != "MIT":
             fail(f"{name}: license must be MIT")
         if meta.get("author") != "Preetham Kyanam":

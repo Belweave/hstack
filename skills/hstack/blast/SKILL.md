@@ -1,7 +1,7 @@
 ---
 name: blast
 description: Find what a small diff can break, and prove the safe fact.
-version: 0.2.0
+version: 0.2.1
 author: Preetham Kyanam
 license: MIT
 platforms: [linux, macos, windows]

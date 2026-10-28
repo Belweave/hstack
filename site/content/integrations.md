@@ -28,7 +28,7 @@ Commands, dry-run, and the Windows `-File` form are on the [add-ons](/docs/addon
 
 ## Hooks
 
-`--with hermes-hooks` registers shell hooks in `~/.hermes/config.yaml`. Nothing in the skills imports them, so a Hermes update that moves a Python API does not break the router. The guard blocks a short denylist of destructive terminal commands. The session hook appends a stamp when the session actually ends (`on_session_finalize`, not `on_session_end`, which fires every turn). The suggest hook can add context on the first turn only, and only an HStack playbook name. Hermes still asks before a new hook command runs, unless you pass `--accept-hooks` yourself.
+Since 0.2.0, `--with hermes-hooks` registers shell hooks in `~/.hermes/config.yaml`. Nothing in the skills imports them, so a Hermes update that moves a Python API does not break the router. The guard blocks a short denylist of destructive terminal commands. The session hook appends a stamp when the session actually ends (`on_session_finalize`, not `on_session_end`, which fires every turn). The suggest hook can add context on the first turn only, and only an HStack playbook name. Hermes still asks before a new hook command runs, unless you pass `--accept-hooks` yourself.
 
 ## Outside stacks
 

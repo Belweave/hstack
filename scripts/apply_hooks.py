@@ -332,9 +332,13 @@ def copy_self(dest_root: Path, dry_run: bool) -> None:
     target.chmod(0o644)
 
 
+def backup_dir(root: Path) -> Path:
+    return root / "hstack-backups"
+
+
 def backup_config(config: Path, root: Path) -> None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    dest = root / "hstack" / "backups" / f"config.yaml.{stamp}"
+    dest = backup_dir(root) / f"config.yaml.{stamp}"
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(config, dest)
     say(f"backed up config.yaml to {dest}")
@@ -437,11 +441,6 @@ def apply(root: Path, source: Path | None, hooks: list[str], remove: bool, dry_r
             self_copy = dest_root / "apply_hooks.py"
             if self_copy.is_file() and not self_copy.is_symlink():
                 self_copy.unlink()
-            backups = dest_root / "backups"
-            if backups.is_dir():
-                for child in backups.iterdir():
-                    if child.is_file() and child.name.startswith("config.yaml."):
-                        child.unlink()
             prune_root(dest_root)
         return
     if not marker.exists():

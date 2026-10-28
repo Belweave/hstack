@@ -1,10 +1,9 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import { emitSite } from "./render.mjs";
+import { assertVendoredPins, CURRENT, PINS, vendorArchive } from "./archive.mjs";
 
 const site = path.resolve(import.meta.dirname, "..");
 const root = path.resolve(site, "..");
@@ -59,8 +58,8 @@ const version = skills[0].version;
 if (!skills.every((skill) => skill.version === version)) {
   throw new Error("skill versions differ");
 }
-if (version !== "0.2.0") {
-  throw new Error(`version is ${version}; dist publishes hstack-v0.2.0.tar.gz`);
+if (version !== CURRENT) {
+  throw new Error(`version is ${version}; dist publishes hstack-v${CURRENT}.tar.gz`);
 }
 
 const idle = tokens("  hstack:", "category") + skills.reduce((sum, skill) => sum + skill.idle, 0);
@@ -93,34 +92,22 @@ const helpers = [
   "hstack-test",
   "hstack-visdiff",
 ];
-const stage = mkdtempSync(path.join(tmpdir(), "hstack-skills-"));
-try {
-  const top = path.join(stage, "hstack");
-  mkdirSync(path.join(top, "skills"), { recursive: true });
-  mkdirSync(path.join(top, "scripts"), { recursive: true });
-  mkdirSync(path.join(top, "bin"), { recursive: true });
-  mkdirSync(path.join(top, "hooks"), { recursive: true });
-  const skipCache = (src) => !src.split(path.sep).includes("__pycache__");
-  cpSync(skillsRoot, path.join(top, "skills", "hstack"), { recursive: true, filter: skipCache });
-  cpSync(path.join(root, "hooks"), path.join(top, "hooks"), { recursive: true, filter: skipCache });
-  cpSync(path.join(root, "scripts", "apply_addons.py"), path.join(top, "scripts", "apply_addons.py"));
-  cpSync(path.join(root, "scripts", "apply_hooks.py"), path.join(top, "scripts", "apply_hooks.py"));
-  for (const helper of helpers) {
-    cpSync(path.join(root, "bin", helper), path.join(top, "bin", helper));
+assertVendoredPins(site);
+{
+  for (const [frozenVersion, pin] of Object.entries(PINS)) {
+    const bytes = readFileSync(vendorArchive(site, frozenVersion));
+    const digest = crypto.createHash("sha256").update(bytes).digest("hex");
+    if (digest !== pin) {
+      throw new Error(`vendored hstack-v${frozenVersion}.tar.gz is ${digest}`);
+    }
+    const target = path.join(dist, "dl", `hstack-v${frozenVersion}.tar.gz`);
+    writeFileSync(target, bytes);
+    writeFileSync(`${target}.sha256`, `${digest}  hstack-v${frozenVersion}.tar.gz\n`);
   }
-  writeFileSync(path.join(top, "VERSION"), `${version}\n`);
-  const versioned = path.join(dist, "dl", `hstack-v${version}.tar.gz`);
-  execFileSync("tar", [
-    "--format=ustar",
-    "--owner=0",
-    "--group=0",
-    "--numeric-owner",
-    "-czf",
-    versioned,
-    "-C",
-    stage,
-    "hstack",
-  ], { stdio: "inherit" });
+  const versioned = path.join(dist, "dl", `hstack-v${CURRENT}.tar.gz`);
+  if (!PINS[CURRENT]) {
+    throw new Error(`missing pin for hstack-v${CURRENT}.tar.gz`);
+  }
   const members = execFileSync("tar", ["-tzf", versioned], { encoding: "utf8" }).trim().split("\n");
   const tops = new Set(members.map((member) => member.replace(/^\.\//, "").split("/")[0]).filter(Boolean));
   if (tops.size !== 1 || !tops.has("hstack")) {
@@ -162,24 +149,15 @@ try {
       throw new Error(`archive helper is not executable: ${helper}`);
     }
   }
-  const frozenVersion = "0.1.0";
-  const frozenSha = "0c8009ee04fb31126b76e4202c91eee14e8d5be7d1cd42ac0cee551012eeda6e";
-  const vendorArchive = path.join(site, "vendor", "dl", `hstack-v${frozenVersion}.tar.gz`);
-  const frozenBytes = readFileSync(vendorArchive);
-  const frozenDigest = crypto.createHash("sha256").update(frozenBytes).digest("hex");
-  if (frozenDigest !== frozenSha) {
-    throw new Error(`vendored hstack-v${frozenVersion}.tar.gz hash is ${frozenDigest}`);
-  }
-  const frozenTarget = path.join(dist, "dl", `hstack-v${frozenVersion}.tar.gz`);
-  writeFileSync(frozenTarget, frozenBytes);
-  copyFileSync(`${vendorArchive}.sha256`, `${frozenTarget}.sha256`);
   const latest = path.join(dist, "dl", "hstack.tar.gz");
   copyFileSync(versioned, latest);
   const hash = crypto.createHash("sha256").update(readFileSync(versioned)).digest("hex");
-  if (hash === frozenSha) {
-    throw new Error("0.2.0 archive matches the frozen 0.1.0 bytes");
+  if (hash !== PINS[CURRENT]) {
+    throw new Error(`latest alias is ${hash}, vendored ${CURRENT} pin is ${PINS[CURRENT]}`);
   }
-  writeFileSync(`${versioned}.sha256`, `${hash}  hstack-v${version}.tar.gz\n`);
+  if (hash === PINS["0.1.0"] || hash === PINS["0.2.0"]) {
+    throw new Error("latest alias still matches an older frozen archive");
+  }
   writeFileSync(`${latest}.sha256`, `${hash}  hstack.tar.gz\n`);
   for (const published of ["install.sh", "install.ps1"]) {
     if (readFileSync(path.join(dist, published), "utf8").includes("github.com")) {
@@ -187,6 +165,4 @@ try {
     }
   }
   console.log(`idle ${idle}  planning ${planning}  bodies ${bodies}  js ${jsGzip} gzip  ${hash.slice(0, 12)}`);
-} finally {
-  rmSync(stage, { recursive: true, force: true });
 }

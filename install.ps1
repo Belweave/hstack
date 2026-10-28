@@ -348,7 +348,7 @@ if ($links.Count -gt 0) {
     Die 'refusing to copy a link or special file from the skill tree'
 }
 
-$ver = '0.2.0'
+$ver = '0.2.1'
 $versionFile = if ($AddonRoot) { Join-Path $AddonRoot 'VERSION' } else { $null }
 if ($versionFile -and (Test-Path -LiteralPath $versionFile)) {
     $digits = ([System.IO.File]::ReadAllText($versionFile) -replace '[^0-9.]', '')

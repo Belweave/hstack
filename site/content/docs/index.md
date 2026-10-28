@@ -17,4 +17,4 @@ Skills land in `~/.hermes/skills/hstack/`. Set `HERMES_HOME` when Hermes lives s
 
 The planning path is `hstack`, `reframe`, and `shape`: 1,052 tokens, under 2% of GStack's planning load on Hermes. The idle index is 204 tokens. All twelve `SKILL.md` bodies are 3,907. Counts use Hermes's estimator, `ceil(bytes / 4)`.
 
-Playbooks live under `skills/hstack/hstack/references/` and load one at a time. After that playbook, the router may read `stacks.md` and ask before using gstack, pstack, tstack, or gbrain. Hermes shell hooks stay off unless the install names `--with hermes-hooks`. The [skills index](/skills) lists each skill. [Parity](/parity) has one row for every GStack, TStack, and PStack feature that was inventoried.
+Playbooks live under `skills/hstack/hstack/references/` and load one at a time. After that playbook, the router may read `stacks.md` and ask before using gstack, pstack, tstack, or gbrain. Hermes shell hooks, since 0.2.0, stay off unless the install names `--with hermes-hooks`. The [skills index](/skills) lists each skill. [Parity](/parity) has one row for every GStack, TStack, and PStack feature that was inventoried.

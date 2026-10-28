@@ -72,10 +72,10 @@ def live(root: Path, command_home: str, hooks: list[str]) -> None:
         fail(f"dry-run wrote config for {command_home}")
     apply_hooks.apply(root, source, hooks, remove=False, dry_run=False, command_home=command_home)
     config = (root / "config.yaml").read_text(encoding="utf-8")
-    backups = list((root / "hstack" / "backups").glob("config.yaml.*")) if (root / "hstack" / "backups").exists() else []
+    backups = list((root / "hstack-backups").glob("config.yaml.*")) if (root / "hstack-backups").exists() else []
     # First write creates the file, so there is no previous config to back up.
     apply_hooks.apply(root, source, hooks, remove=False, dry_run=False, command_home=command_home)
-    backups_after = list((root / "hstack" / "backups").glob("config.yaml.*")) if (root / "hstack" / "backups").exists() else []
+    backups_after = list((root / "hstack-backups").glob("config.yaml.*")) if (root / "hstack-backups").exists() else []
     if len(backups_after) != len(backups):
         fail(f"idempotent install took another backup for {command_home}")
     again = (root / "config.yaml").read_text(encoding="utf-8")
@@ -93,6 +93,11 @@ def live(root: Path, command_home: str, hooks: list[str]) -> None:
         fail(f"uninstall left config for {command_home}")
     if (root / "hstack" / "hooks").exists():
         fail(f"uninstall left hook scripts for {command_home}")
+    kept = list((root / "hstack-backups").glob("config.yaml.*"))
+    if len(kept) != 1 or kept[0].read_text(encoding="utf-8") != config:
+        fail(f"uninstall deleted the config backup for {command_home}")
+    if (root / "hstack" / "backups").exists():
+        fail(f"uninstall left a backup inside hstack for {command_home}")
 
 
 def foreign_backup(root: Path) -> None:
@@ -100,13 +105,13 @@ def foreign_backup(root: Path) -> None:
     original = 'model: local\nhooks:\n  post_tool_call:\n    - command: "/usr/bin/log"\n'
     (root / "config.yaml").write_text(original, encoding="utf-8")
     apply_hooks.apply(root, ROOT, ["guard"], remove=False, dry_run=False, command_home=root.as_posix())
-    backups = list((root / "hstack" / "backups").glob("config.yaml.*"))
+    backups = list((root / "hstack-backups").glob("config.yaml.*"))
     if len(backups) != 1:
         fail(f"expected one backup, found {len(backups)}")
     if backups[0].read_text(encoding="utf-8") != original:
         fail("backup is not the original config")
     apply_hooks.apply(root, ROOT, ["guard"], remove=False, dry_run=False, command_home=root.as_posix())
-    if len(list((root / "hstack" / "backups").glob("config.yaml.*"))) != 1:
+    if len(list((root / "hstack-backups").glob("config.yaml.*"))) != 1:
         fail("second install added a backup")
     text = (root / "config.yaml").read_text(encoding="utf-8")
     if "/usr/bin/log" not in text or "# hstack:guard" not in text:
@@ -117,6 +122,11 @@ def foreign_backup(root: Path) -> None:
         fail("guard uninstall left its entry")
     if "/usr/bin/log" not in left:
         fail("guard uninstall removed the foreign hook")
+    surviving = list((root / "hstack-backups").glob("config.yaml.*"))
+    if not any(item.read_text(encoding="utf-8") == original for item in surviving):
+        fail("uninstall deleted the original config backup")
+    if (root / "hstack" / "backups").exists():
+        fail("uninstall left a backup inside hstack")
 
 
 def installer() -> None:
@@ -157,6 +167,11 @@ def installer() -> None:
         state = home / "hstack" / "hooks.json"
         if state.exists():
             fail(f"hook state remained: {state.read_text()}")
+        kept = list((home / "hstack-backups").glob("config.yaml.*"))
+        if not kept or not any("hstack" in item.read_text(encoding="utf-8") for item in kept):
+            fail("uninstall deleted its config backup")
+        if (home / "hstack" / "backups").exists():
+            fail("uninstall left a backup inside the removed tree")
 
 
 def behavior() -> None:

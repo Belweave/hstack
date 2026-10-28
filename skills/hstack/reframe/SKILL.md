@@ -1,7 +1,7 @@
 ---
 name: reframe
 description: Name the real job before any plan or code.
-version: 0.2.0
+version: 0.2.1
 author: Preetham Kyanam
 license: MIT
 platforms: [linux, macos, windows]

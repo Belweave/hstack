@@ -32,6 +32,7 @@ jobs:
         run: |
           cd site
           npm ci
+          node scripts/check-archives.mjs
           npm run build
           node scripts/check-no-html.mjs
           node scripts/check-pages.mjs

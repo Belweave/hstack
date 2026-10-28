@@ -63,7 +63,7 @@ install_with() {
   test -f "$home/hermes/skills/hstack/hstack/references/frame.md" || fail "$label missing playbook"
   test "$(count_skills "$home/hermes")" -eq 12 || fail "$label expected 12 skills"
   test ! -e "$home/hermes/skills/hstack/VERSION" || fail "$label left VERSION in the skill tree"
-  grep -q 'version: 0.2.0' "$home/hermes/skills/hstack/.hstack-managed" || fail "$label marker version"
+  grep -q 'version: 0.2.1' "$home/hermes/skills/hstack/.hstack-managed" || fail "$label marker version"
   diff -q "$ROOT/skills/hstack/reframe/SKILL.md" "$home/hermes/skills/hstack/reframe/SKILL.md" >/dev/null \
     || fail "$label skill bytes differ"
   if [ -n "$path_value" ]; then

@@ -38,19 +38,22 @@ Leave the Porkbun nameservers alone. The registrar stays Porkbun. Vercel does no
 - Any other path under `/install/` is a plain-text 404 (`not found`), not an HTML page.
 - `curl -fsSL hstack.sh/install` follows HTTP to HTTPS and receives the script. `curl -fsSL www.hstack.sh/install` follows the 308 to the apex and receives the same script.
 
-Do not rebuild `/dl/hstack-v0.1.0.tar.gz`. The site build copies `site/vendor/dl/hstack-v0.1.0.tar.gz` into `dist` unchanged. Those bytes are the archive already on hstack.sh. sha256 `0c8009ee04fb31126b76e4202c91eee14e8d5be7d1cd42ac0cee551012eeda6e`, 19967 bytes. The checksum file is that digest, two spaces, then `hstack-v0.1.0.tar.gz`.
+Do not rebuild `/dl/hstack-v0.1.0.tar.gz` or `/dl/hstack-v0.2.0.tar.gz`. The site build copies both from `site/vendor/dl/` unchanged.
+
+`hstack-v0.1.0.tar.gz` is sha256 `0c8009ee04fb31126b76e4202c91eee14e8d5be7d1cd42ac0cee551012eeda6e`, 19967 bytes. `hstack-v0.2.0.tar.gz` is the file hstack.sh served for 0.2.0, sha256 `c16dfee4cd2841939a97a5cebf816c3fc3e8d71e28f2f1874639ea539ea20810`, 30914 bytes. Each checksum line is that digest, two spaces, then the filename.
 
 After this deploy, `/dl` is:
 
 | Path | Bytes | Cache-Control |
 |---|---|---|
-| `/dl/hstack-v0.1.0.tar.gz` and `.sha256` | the vendored 0.1.0 archive, unchanged | `public, max-age=31536000, immutable` |
-| `/dl/hstack-v0.2.0.tar.gz` and `.sha256` | the new archive from this tree | `public, max-age=31536000, immutable` |
-| `/dl/hstack.tar.gz` and `.sha256` | the same bytes as `hstack-v0.2.0.tar.gz` | `public, max-age=300` |
+| `/dl/hstack-v0.1.0.tar.gz` and `.sha256` | the vendored 0.1.0 archive | `public, max-age=31536000, immutable` |
+| `/dl/hstack-v0.2.0.tar.gz` and `.sha256` | the vendored live 0.2.0 archive, not a rebuild | `public, max-age=31536000, immutable` |
+| `/dl/hstack-v0.2.1.tar.gz` and `.sha256` | the vendored 0.2.1 archive | `public, max-age=31536000, immutable` |
+| `/dl/hstack.tar.gz` and `.sha256` | the same bytes as `hstack-v0.2.1.tar.gz` | `public, max-age=300` |
 
-`HSTACK_VERSION=0.1.0` requests the versioned 0.1.0 file, not the alias. The alias changes on this deploy. Its five-minute cache is the existing rule. Until this build is deployed, hstack.sh still serves 0.1.0 at `/dl/hstack.tar.gz`.
+`HSTACK_VERSION=0.1.0` and `HSTACK_VERSION=0.2.0` request those versioned files, not the alias. The alias changes on this deploy. Its five-minute cache is the existing rule. Until this build is deployed, hstack.sh still serves 0.2.0 at `/dl/hstack.tar.gz`.
 
-The 0.2.0 archive has one top-level directory. Inside it are `skills/hstack/`, `scripts/apply_addons.py`, `scripts/apply_hooks.py`, `hooks/`, `bin/` (the addon helpers), and `VERSION`.
+The 0.2.1 archive has one top-level directory. Inside it are `skills/hstack/`, `scripts/apply_addons.py`, `scripts/apply_hooks.py`, `hooks/`, `bin/` (the addon helpers), and `VERSION`.
 
 ## Cloudflare Pages fallback
 

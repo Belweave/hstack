@@ -1,7 +1,7 @@
 ---
 name: principles
 description: Apply the design rule that should change this decision.
-version: 0.2.0
+version: 0.2.1
 author: Preetham Kyanam
 license: MIT
 platforms: [linux, macos, windows]
