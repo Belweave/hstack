@@ -13,10 +13,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck -s sh install.sh scripts/check_install.sh
+          shellcheck -s sh install.sh scripts/check_install.sh scripts/check_piped_install.sh
       - name: Python syntax
         run: python3 -m py_compile scripts/check_skills.py scripts/apply_addons.py bin/hstack-bench bin/hstack-test bin/hstack-pr bin/hstack-visdiff bin/hstack-scan bin/hstack-decisions
       - name: Skills
         run: python3 scripts/check_skills.py
       - name: Installer
         run: sh scripts/check_install.sh
+      - name: Site
+        run: |
+          cd site
+          npm ci
+          npm run build
+          node scripts/check-no-html.mjs
+          node scripts/check-pages.mjs
+          cd ..
+          sh scripts/check_piped_install.sh

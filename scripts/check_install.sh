@@ -12,6 +12,16 @@ fail() {
   exit 1
 }
 
+if grep -q 'github.com' "$INSTALL"; then
+  fail "installer must not fetch from GitHub"
+fi
+if grep -q 'github.com' "$ROOT/install.ps1"; then
+  fail "install.ps1 must not fetch from GitHub"
+fi
+if grep -q 'HSTACK_REF' "$INSTALL" "$ROOT/install.ps1"; then
+  fail "installers still select a git ref"
+fi
+
 count_skills() {
   _n=0
   for _dir in "$1"/skills/hstack/*; do

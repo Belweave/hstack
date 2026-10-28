@@ -24,9 +24,11 @@ Twelve skills for Hermes Agent. Frame the job, shape the change, prove it, and o
 curl -fsSL https://hstack.sh/install | sh
 ```
 
-From a checkout of this repo, `sh install.sh` installs that checkout. A second run replaces the HStack skills and leaves every other skill alone. Pass `--dry-run` to print the plan and write nothing.
+The curl form downloads `install.sh` and the skill archive from hstack.sh, checks the sha256, and extracts into the Hermes skills directory. It does not clone this repository. `HSTACK_BASE_URL` points the download at another host, such as a `*.pages.dev` URL before DNS is in place. `HSTACK_VERSION=0.1.0` pins `hstack-v0.1.0.tar.gz` instead of the latest alias. The archive is one directory containing the skills, `scripts/apply_addons.py`, and the `bin/` helpers, so `--with` works from the curl form too.
 
-Skills land in `~/.hermes/skills/hstack/`. Set `HERMES_HOME` if Hermes lives somewhere else. `install.sh` is for macOS and Linux. On Windows, `install.ps1` takes the same flags. WSL can run `install.sh`.
+From a checkout of this repo, `sh install.sh` installs the skills beside the script. A second run replaces the HStack skills and leaves every other skill alone. Pass `--dry-run` to print the plan and write nothing.
+
+Skills land in `~/.hermes/skills/hstack/`. Set `HERMES_HOME` if Hermes lives somewhere else. `install.sh` is for macOS and Linux. On Windows, `https://hstack.sh/install.ps1` takes the same flags and downloads the same archive. WSL can run `install.sh`.
 
 ## Why this instead of GStack
 
@@ -35,10 +37,10 @@ GStack's Hermes host puts every skill in the always-on index. HStack puts one ro
 | | GStack on Hermes | HStack |
 |---|---:|---:|
 | Idle index | 1,182 | 204 |
-| Planning load | 62,514 of SKILL.md, plus a ~5,600 preamble | 2,500 |
-| All SKILL.md bodies | 420,401 | 8,550 |
+| Planning load | 62,514 of SKILL.md, plus a ~5,600 preamble | 965 |
+| All SKILL.md bodies | 420,401 | 3,820 |
 
-The planning path is `hstack`, `reframe`, and `shape`. 2,500 against 62,514 is about 25× smaller. The idle index is about 6× smaller. HStack's body figures are the v0.1 ceilings. 204 is the index cost of these descriptions, including the `hstack` category header.
+The planning path is `hstack`, `reframe`, and `shape`. 965 against 62,514 is under 2% of that context. The idle index is about 6× smaller. These HStack figures are measured from the files in this repo. 204 is the index cost of these descriptions, including the `hstack` category header. The v0.1 ceilings in PLAN.md are 2,500 and 8,550.
 
 ## Skills
 

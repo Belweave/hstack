@@ -2,10 +2,13 @@
 # Install HStack into Hermes Agent.
 #   curl -fsSL https://hstack.sh/install | sh
 #   curl -fsSL https://hstack.sh/install | sh -s -- --uninstall
-#   sh install.sh [--dry-run] [--uninstall]
+#   sh install.sh [--dry-run] [--uninstall] [--with name,name]
 # Skills go to ${HERMES_HOME:-$HOME/.hermes}/skills/hstack.
 # A second run replaces an install this script created. It will not touch
 # any other skill, and it will not delete a directory it did not mark.
+# The curl form downloads the archive from hstack.sh. The repository is private,
+# so this script does not fetch from a git host. The archive also carries the
+# addon helpers under bin/ and scripts/apply_addons.py.
 
 set -eu
 
@@ -25,7 +28,8 @@ usage() {
     'Installs into the Hermes home, at skills/hstack. The usual home is .hermes in your home directory.' \
     'The default install is skills only. --with adds an optional addon:' \
     'browser, github, docs, search, perf, test, security, trail.' \
-    'HSTACK_REF selects the git branch when the script downloads (default: main).' \
+    'The curl form downloads the archive from hstack.sh.' \
+    'HSTACK_BASE_URL overrides that host. HSTACK_VERSION pins a release.' \
     'Running this file from a git checkout installs that checkout.'
 }
 
@@ -251,6 +255,7 @@ fi
 MODE=
 SRC=
 URL=
+SUM=
 if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/skills/hstack/hstack/SKILL.md" ]; then
   MODE=local
   SRC="$SCRIPT_DIR/skills/hstack"
@@ -259,14 +264,26 @@ fi
 
 if [ -z "$MODE" ]; then
   MODE=remote
-  REF=${HSTACK_REF:-main}
-  case "$REF" in
-    ''|-*|*..*|*[[:space:]]*|*'/'*) die "refusing HSTACK_REF" ;;
+  BASE=${HSTACK_BASE_URL:-https://hstack.sh}
+  case "$BASE" in
+    */) BASE=${BASE%/} ;;
   esac
-  case "$REF" in
-    *[!A-Za-z0-9._-]*) die "refusing HSTACK_REF" ;;
+  case "$BASE" in
+    http://*|https://*) ;;
+    *) die "refusing HSTACK_BASE_URL" ;;
   esac
-  URL="https://github.com/Belweave/hstack/archive/refs/heads/${REF}.tar.gz"
+  case "$BASE" in
+    *[[:space:]]*|*'<'*|*'..'*) die "refusing HSTACK_BASE_URL" ;;
+  esac
+  NAME=hstack.tar.gz
+  if [ -n "${HSTACK_VERSION:-}" ]; then
+    case "$HSTACK_VERSION" in
+      ''|*[!0-9.]*|*..*) die "refusing HSTACK_VERSION" ;;
+    esac
+    NAME="hstack-v${HSTACK_VERSION}.tar.gz"
+  fi
+  URL="$BASE/dl/$NAME"
+  SUM="$BASE/dl/${NAME}.sha256"
 fi
 
 if [ "$DRY" -eq 1 ]; then
@@ -275,23 +292,57 @@ if [ "$DRY" -eq 1 ]; then
     say "dry-run: source tree $SRC"
   else
     say "dry-run: would download $URL"
+    say "dry-run: would verify $SUM"
   fi
   run_addons install
   exit 0
 fi
+
+hash_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk 'NR==1 { print $1 }'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk 'NR==1 { print $1 }'
+  else
+    die "sha256sum or shasum is required"
+  fi
+}
 
 if [ "$MODE" = remote ]; then
   command -v curl >/dev/null 2>&1 || die "curl is required to download HStack"
   command -v tar >/dev/null 2>&1 || die "tar is required to download HStack"
   WORK=$(mktemp -d)
   archive="$WORK/hstack.tar.gz"
+  sumfile="$WORK/hstack.tar.gz.sha256"
   curl -fsSL -o "$archive" "$URL" || die "download failed"
-  if [ ! -s "$archive" ]; then
+  curl -fsSL -o "$sumfile" "$SUM" || die "checksum download failed"
+  if [ ! -s "$archive" ] || [ ! -s "$sumfile" ]; then
     die "download was empty"
+  fi
+  magic=$(od -An -t x1 -N 2 "$archive" | tr -d ' \n')
+  case "$magic" in
+    1f8b) ;;
+    *) die "download was not a gzip archive" ;;
+  esac
+  expected=$(awk 'NR==1 { print $1 }' "$sumfile")
+  case "$expected" in
+    *[!0-9A-Fa-f]*|'') die "checksum was not a sha256 digest" ;;
+  esac
+  elen=$(printf '%s' "$expected" | wc -c | tr -d ' ')
+  if [ "$elen" -ne 64 ]; then
+    die "checksum was not a sha256 digest"
+  fi
+  actual=$(hash_file "$archive")
+  if [ "$actual" != "$expected" ]; then
+    die "checksum mismatch"
   fi
   tar -tzf "$archive" > "$WORK/members" || die "could not read archive"
   while IFS= read -r member || [ -n "$member" ]; do
-    case "$member" in
+    norm=$member
+    case "$norm" in
+      ./*) norm=${norm#./} ;;
+    esac
+    case "$norm" in
       ''|/*|*..*) die "archive member is absolute or contains .." ;;
     esac
   done < "$WORK/members"
@@ -316,26 +367,40 @@ if [ "$MODE" = remote ]; then
   SRC="$top/skills/hstack"
   ADDON_ROOT=$top
   if [ ! -f "$SRC/hstack/SKILL.md" ]; then
-    die "archive is missing skills/hstack/hstack/SKILL.md"
+    die "archive is missing hstack/SKILL.md"
   fi
 fi
 
 if [ ! -f "$SRC/hstack/SKILL.md" ]; then
-  die "missing skills/hstack/hstack/SKILL.md"
+  die "missing hstack/SKILL.md"
 fi
 
 if find "$SRC" \( -type l -o -type b -o -type c -o -type p -o -type s \) -print | grep -q .; then
   die "refusing to copy a link or special file from the skill tree"
 fi
 
+ver=0.1.0
+if [ -n "$ADDON_ROOT" ] && [ -f "$ADDON_ROOT/VERSION" ]; then
+  got=$(tr -cd '0-9.' < "$ADDON_ROOT/VERSION")
+  if [ -n "$got" ]; then
+    ver=$got
+  fi
+fi
 parent=$(dirname "$DEST")
 mkdir -p "$parent"
 STAGE=$(mktemp -d "${parent}/.hstack-stage.XXXXXX")
 cp -R "$SRC/." "$STAGE/"
+if [ -f "$STAGE/VERSION" ]; then
+  got=$(tr -cd '0-9.' < "$STAGE/VERSION")
+  if [ -n "$got" ]; then
+    ver=$got
+  fi
+  rm -f "$STAGE/VERSION"
+fi
 if [ ! -f "$STAGE/hstack/SKILL.md" ]; then
   die "install tree is missing hstack/SKILL.md"
 fi
-printf '%s\n' 'managed-by: hstack install.sh' 'version: 0.1.0' > "$STAGE/.hstack-managed"
+printf '%s\n' 'managed-by: hstack install.sh' "version: $ver" > "$STAGE/.hstack-managed"
 
 if [ -d "$DEST" ]; then
   PREV="${parent}/.hstack-prev.$$"

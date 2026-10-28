@@ -1,0 +1,13 @@
+{
+  "name": "hstack-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/preview.mjs",
+    "check": "node scripts/check-no-html.mjs && node scripts/check-pages.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

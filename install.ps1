@@ -27,7 +27,8 @@ Usage: powershell -File install.ps1 [--dry-run] [--uninstall] [--with name,name]
 Installs into the Hermes home, at skills\hstack. The usual home is .hermes in your profile directory.
 The default install is skills only. --with adds an optional addon:
 browser, github, docs, search, perf, test, security, trail.
-HSTACK_REF selects the git branch when the script downloads (default: main).
+The download form fetches the archive from hstack.sh.
+HSTACK_BASE_URL overrides that host. HSTACK_VERSION pins a release.
 Running this file from a git checkout installs that checkout.
 '@
 }
@@ -198,13 +199,23 @@ if ((Test-Path -LiteralPath $Dest) -and -not (Test-Path -LiteralPath $Marker)) {
     }
 }
 
+$Url = ''
+$Sum = ''
 if (-not $Mode) {
     $Mode = 'remote'
-    $Ref = if ($env:HSTACK_REF) { $env:HSTACK_REF } else { 'main' }
-    if ($Ref -notmatch '^[A-Za-z0-9._-]+$' -or $Ref.StartsWith('-') -or $Ref.Contains('..')) {
-        Die 'refusing HSTACK_REF'
+    $Base = if ($env:HSTACK_BASE_URL) { $env:HSTACK_BASE_URL.TrimEnd('/') } else { 'https://hstack.sh' }
+    if ($Base -notmatch '^https?://' -or $Base -match '\s|<|>|\.\.') {
+        Die 'refusing HSTACK_BASE_URL'
     }
-    $Url = "https://github.com/Belweave/hstack/archive/refs/heads/$Ref.tar.gz"
+    $Name = 'hstack.tar.gz'
+    if ($env:HSTACK_VERSION) {
+        if ($env:HSTACK_VERSION -notmatch '^[0-9.]+$' -or $env:HSTACK_VERSION.Contains('..')) {
+            Die 'refusing HSTACK_VERSION'
+        }
+        $Name = "hstack-v$($env:HSTACK_VERSION).tar.gz"
+    }
+    $Url = "$Base/dl/$Name"
+    $Sum = "$Base/dl/$Name.sha256"
 }
 
 if ($Dry) {
@@ -213,6 +224,7 @@ if ($Dry) {
         Say "dry-run: source tree $Src"
     } else {
         Say "dry-run: would download $Url"
+        Say "dry-run: would verify $Sum"
     }
     Invoke-Addons 'install'
     exit 0
@@ -221,14 +233,45 @@ if ($Dry) {
 if ($Mode -eq 'remote') {
     $Work = Join-Path ([System.IO.Path]::GetTempPath()) ("hstack-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $Work | Out-Null
+    $RemoteOk = $false
     try {
         $archive = Join-Path $Work 'hstack.tar.gz'
-        Invoke-WebRequest -Uri $Url -OutFile $archive
+        $sumfile = Join-Path $Work 'hstack.tar.gz.sha256'
+        Invoke-WebRequest -Uri $Url -OutFile $archive -UseBasicParsing
+        Invoke-WebRequest -Uri $Sum -OutFile $sumfile -UseBasicParsing
+        if ((Get-Item -LiteralPath $archive).Length -lt 1 -or (Get-Item -LiteralPath $sumfile).Length -lt 1) {
+            Die 'download was empty'
+        }
+        $stream = [System.IO.File]::OpenRead($archive)
+        try {
+            $b0 = $stream.ReadByte()
+            $b1 = $stream.ReadByte()
+        } finally {
+            $stream.Dispose()
+        }
+        if ($b0 -ne 0x1f -or $b1 -ne 0x8b) {
+            Die 'download was not a gzip archive'
+        }
+        $expected = ((Get-Content -LiteralPath $sumfile -TotalCount 1) -split '\s+', 2)[0]
+        if ($expected -notmatch '^[0-9A-Fa-f]{64}$') {
+            Die 'checksum was not a sha256 digest'
+        }
+        $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+        if ($actual.ToLowerInvariant() -ne $expected.ToLowerInvariant()) {
+            Die 'checksum mismatch'
+        }
         $members = & tar -tzf $archive
         if ($LASTEXITCODE -ne 0) { Die 'could not read archive' }
         foreach ($member in $members) {
             if (-not $member -or $member.StartsWith('/') -or $member.StartsWith('\') -or $member.Contains('..')) {
                 Die 'archive member is absolute or contains ..'
+            }
+        }
+        $listing = & tar -tvzf $archive
+        if ($LASTEXITCODE -ne 0) { Die 'could not list archive' }
+        foreach ($line in $listing) {
+            if ($line.StartsWith('l') -or $line.StartsWith('h')) {
+                Die 'archive contains a link; refusing to extract it'
             }
         }
         & tar -xzf $archive -C $Work
@@ -240,8 +283,9 @@ if ($Mode -eq 'remote') {
         if (-not (Test-Path -LiteralPath (Join-Path $Src 'hstack\SKILL.md'))) {
             Die 'archive is missing skills/hstack/hstack/SKILL.md'
         }
+        $RemoteOk = $true
     } finally {
-        if ($Mode -eq 'remote' -and (Test-Path -LiteralPath $Work) -and -not $Src) {
+        if (-not $RemoteOk -and (Test-Path -LiteralPath $Work)) {
             Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
@@ -255,6 +299,12 @@ if ($links.Count -gt 0) {
     Die 'refusing to copy a link or special file from the skill tree'
 }
 
+$ver = '0.1.0'
+$versionFile = if ($AddonRoot) { Join-Path $AddonRoot 'VERSION' } else { $null }
+if ($versionFile -and (Test-Path -LiteralPath $versionFile)) {
+    $digits = ([System.IO.File]::ReadAllText($versionFile) -replace '[^0-9.]', '')
+    if ($digits) { $ver = $digits }
+}
 $Parent = Split-Path -Parent $Dest
 if (-not (Test-Path -LiteralPath $Parent)) {
     New-Item -ItemType Directory -Path $Parent | Out-Null
@@ -262,10 +312,16 @@ if (-not (Test-Path -LiteralPath $Parent)) {
 $Stage = Join-Path $Parent ('.hstack-stage.' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $Stage | Out-Null
 Copy-Item -Path (Join-Path $Src '*') -Destination $Stage -Recurse -Force
+$stagedVersion = Join-Path $Stage 'VERSION'
+if (Test-Path -LiteralPath $stagedVersion) {
+    $digits = ([System.IO.File]::ReadAllText($stagedVersion) -replace '[^0-9.]', '')
+    if ($digits) { $ver = $digits }
+    Remove-Item -LiteralPath $stagedVersion -Force
+}
 if (-not (Test-Path -LiteralPath (Join-Path $Stage 'hstack\SKILL.md'))) {
     Die 'install tree is missing hstack/SKILL.md'
 }
-Set-Content -LiteralPath (Join-Path $Stage '.hstack-managed') -Value "managed-by: hstack install.sh`nversion: 0.1.0`n" -NoNewline -Encoding ascii
+Set-Content -LiteralPath (Join-Path $Stage '.hstack-managed') -Value "managed-by: hstack install.sh`nversion: $ver`n" -NoNewline -Encoding ascii
 
 if (Test-Path -LiteralPath $Dest) {
     $Prev = Join-Path $Parent ('.hstack-prev.' + $PID)
