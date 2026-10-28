@@ -37,10 +37,20 @@ Leave the Porkbun nameservers alone. The registrar stays Porkbun. Vercel does no
 - `https://hstack.sh/install.ps1` is the Windows installer, also `text/plain`.
 - Any other path under `/install/` is a plain-text 404 (`not found`), not an HTML page.
 - `curl -fsSL hstack.sh/install` follows HTTP to HTTPS and receives the script. `curl -fsSL www.hstack.sh/install` follows the 308 to the apex and receives the same script.
-- `https://hstack.sh/dl/hstack.tar.gz` is the latest archive. `hstack.tar.gz.sha256` is its digest.
-- `https://hstack.sh/dl/hstack-v0.1.0.tar.gz` is that same release by version. The installer checks the digest before it extracts.
 
-The archive has one top-level directory. Inside it are `skills/hstack/`, `scripts/apply_addons.py`, `bin/` (the addon helpers), and `VERSION`.
+Do not rebuild `/dl/hstack-v0.1.0.tar.gz`. The site build copies `site/vendor/dl/hstack-v0.1.0.tar.gz` into `dist` unchanged. Those bytes are the archive already on hstack.sh. sha256 `0c8009ee04fb31126b76e4202c91eee14e8d5be7d1cd42ac0cee551012eeda6e`, 19967 bytes. The checksum file is that digest, two spaces, then `hstack-v0.1.0.tar.gz`.
+
+After this deploy, `/dl` is:
+
+| Path | Bytes | Cache-Control |
+|---|---|---|
+| `/dl/hstack-v0.1.0.tar.gz` and `.sha256` | the vendored 0.1.0 archive, unchanged | `public, max-age=31536000, immutable` |
+| `/dl/hstack-v0.2.0.tar.gz` and `.sha256` | the new archive from this tree | `public, max-age=31536000, immutable` |
+| `/dl/hstack.tar.gz` and `.sha256` | the same bytes as `hstack-v0.2.0.tar.gz` | `public, max-age=300` |
+
+`HSTACK_VERSION=0.1.0` requests the versioned 0.1.0 file, not the alias. The alias changes on this deploy. Its five-minute cache is the existing rule. Until this build is deployed, hstack.sh still serves 0.1.0 at `/dl/hstack.tar.gz`.
+
+The 0.2.0 archive has one top-level directory. Inside it are `skills/hstack/`, `scripts/apply_addons.py`, `scripts/apply_hooks.py`, `hooks/`, `bin/` (the addon helpers), and `VERSION`.
 
 ## Cloudflare Pages fallback
 

@@ -63,7 +63,7 @@ install_with() {
   test -f "$home/hermes/skills/hstack/hstack/references/frame.md" || fail "$label missing playbook"
   test "$(count_skills "$home/hermes")" -eq 12 || fail "$label expected 12 skills"
   test ! -e "$home/hermes/skills/hstack/VERSION" || fail "$label left VERSION in the skill tree"
-  grep -q 'version: 0.1.0' "$home/hermes/skills/hstack/.hstack-managed" || fail "$label marker version"
+  grep -q 'version: 0.2.0' "$home/hermes/skills/hstack/.hstack-managed" || fail "$label marker version"
   diff -q "$ROOT/skills/hstack/reframe/SKILL.md" "$home/hermes/skills/hstack/reframe/SKILL.md" >/dev/null \
     || fail "$label skill bytes differ"
   if [ -n "$path_value" ]; then
@@ -129,6 +129,8 @@ install_with macos "$MAC:/bin"
 HOME=$TMP/pin HERMES_HOME=$TMP/pin/hermes HSTACK_BASE_URL="http://127.0.0.1:$PORT" HSTACK_VERSION=0.1.0 \
   /bin/sh -c 'curl -fsSL "$HSTACK_BASE_URL/install" | sh'
 test -f "$TMP/pin/hermes/skills/hstack/shape/SKILL.md" || fail "version pin did not install"
+grep -q 'version: 0.1.0' "$TMP/pin/hermes/skills/hstack/.hstack-managed" || fail "version pin marker is not 0.1.0"
+test ! -e "$TMP/pin/hermes/skills/hstack/hstack/references/stacks.md" || fail "version pin installed the 0.2 registry"
 
 mkdir -p "$TMP/bad/dl"
 cp "$SITE/dist/dl/hstack.tar.gz" "$TMP/bad/dl/hstack.tar.gz"

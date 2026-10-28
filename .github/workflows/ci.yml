@@ -15,9 +15,15 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck -s sh install.sh scripts/check_install.sh scripts/check_piped_install.sh
       - name: Python syntax
-        run: python3 -m py_compile scripts/check_skills.py scripts/apply_addons.py bin/hstack-bench bin/hstack-test bin/hstack-pr bin/hstack-visdiff bin/hstack-scan bin/hstack-decisions
+        run:           python3 -m py_compile scripts/check_skills.py scripts/apply_addons.py scripts/apply_hooks.py scripts/check_consent.py scripts/check_hooks.py scripts/check_stacks.py skills/hstack/hstack/scripts/hstack_stack.py hooks/hstack_hook.py hooks/guard.py hooks/save.py hooks/suggest.py bin/hstack-bench bin/hstack-test bin/hstack-pr bin/hstack-visdiff bin/hstack-scan bin/hstack-decisions
       - name: Skills
         run: python3 scripts/check_skills.py
+      - name: Consent
+        run: python3 scripts/check_consent.py
+      - name: Hooks
+        run: python3 scripts/check_hooks.py
+      - name: Stacks
+        run: python3 scripts/check_stacks.py
       - name: Installer
         run: sh scripts/check_install.sh
       - name: BSD tar

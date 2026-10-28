@@ -8,8 +8,10 @@ $ErrorActionPreference = 'Stop'
 
 $Dry = $false
 $Uninstall = $false
-$With = New-Object System.Collections.Generic.List[string]
 $AddonNames = @('browser', 'github', 'docs', 'search', 'perf', 'test', 'security', 'trail')
+$HookNames = @('hermes-hooks', 'hermes-hooks-guard', 'hermes-hooks-save', 'hermes-hooks-suggest')
+$AddonWith = New-Object System.Collections.Generic.List[string]
+$HookWith = New-Object System.Collections.Generic.List[string]
 
 function Die([string]$Message) {
     [Console]::Error.WriteLine("hstack: $Message")
@@ -27,23 +29,29 @@ Usage: powershell -File install.ps1 [--dry-run] [--uninstall] [--with name,name]
 Installs into the Hermes home, at skills\hstack. The usual home is .hermes in your profile directory.
 The default install is skills only. --with adds an optional addon:
 browser, github, docs, search, perf, test, security, trail.
+--with hermes-hooks adds optional shell hooks. Subsets are
+hermes-hooks-guard, hermes-hooks-save, and hermes-hooks-suggest.
 The download form fetches the archive from hstack.sh.
 HSTACK_BASE_URL overrides that host. HSTACK_VERSION pins a release.
 Running this file from a git checkout installs that checkout.
 '@
 }
 
-function Add-AddonNames([string]$Raw) {
+function Add-WithNames([string]$Raw) {
     if ([string]::IsNullOrWhiteSpace($Raw)) {
         Die '--with needs a comma-separated list'
     }
     foreach ($name in $Raw.Split(',')) {
         $trimmed = $name.Trim()
-        if (-not $trimmed -or $AddonNames -notcontains $trimmed) {
-            Die "unknown addon: $trimmed"
+        if (-not $trimmed) {
+            Die 'unknown addon: empty'
         }
-        if (-not $With.Contains($trimmed)) {
-            [void]$With.Add($trimmed)
+        if ($AddonNames -contains $trimmed) {
+            if (-not $AddonWith.Contains($trimmed)) { [void]$AddonWith.Add($trimmed) }
+        } elseif ($HookNames -contains $trimmed) {
+            if (-not $HookWith.Contains($trimmed)) { [void]$HookWith.Add($trimmed) }
+        } else {
+            Die "unknown addon: $trimmed"
         }
     }
 }
@@ -59,13 +67,13 @@ while ($index -lt $args.Count) {
         Show-Usage
         exit 0
     } elseif ($arg.StartsWith('--with=')) {
-        Add-AddonNames $arg.Substring(7)
+        Add-WithNames $arg.Substring(7)
     } elseif ($arg -eq '--with') {
         $index++
         if ($index -ge $args.Count) {
             Die '--with needs a comma-separated list'
         }
-        Add-AddonNames ([string]$args[$index])
+        Add-WithNames ([string]$args[$index])
     } else {
         Die "unknown argument: $arg"
     }
@@ -122,25 +130,22 @@ if ($ScriptDir -and (Test-Path -LiteralPath (Join-Path $ScriptDir 'skills\hstack
     $AddonRoot = $ScriptDir
 }
 
-function Invoke-Addons([string]$ModeName) {
-    if ($ModeName -ne 'uninstall' -and $With.Count -eq 0) {
+function Invoke-PythonTool([string]$Kind, [string]$ScriptName, $Names, [string]$ModeName) {
+    if ($ModeName -ne 'uninstall' -and $Names.Count -eq 0) {
         return
     }
-    $addonDir = Join-Path $FullHome 'hstack'
-    if ($ModeName -eq 'uninstall' -and $With.Count -eq 0 -and -not (Test-Path -LiteralPath $addonDir)) {
-        return
-    }
+    $toolDir = Join-Path $FullHome 'hstack'
     $python = Get-Command python -ErrorAction SilentlyContinue
     if (-not $python) {
         $python = Get-Command python3 -ErrorAction SilentlyContinue
     }
     if (-not $python) {
-        Die 'python is required for addons'
+        Die "python is required for $Kind"
     }
     $py = $null
-    $repoPy = if ($AddonRoot) { Join-Path $AddonRoot 'scripts\apply_addons.py' } else { $null }
-    $homePy = Join-Path $addonDir 'apply_addons.py'
-    $scriptPy = if ($ScriptDir) { Join-Path $ScriptDir 'scripts\apply_addons.py' } else { $null }
+    $repoPy = if ($AddonRoot) { Join-Path $AddonRoot "scripts\$ScriptName" } else { $null }
+    $homePy = Join-Path $toolDir $ScriptName
+    $scriptPy = if ($ScriptDir) { Join-Path $ScriptDir "scripts\$ScriptName" } else { $null }
     foreach ($candidate in @($repoPy, $homePy, $scriptPy)) {
         if ($candidate -and (Test-Path -LiteralPath $candidate)) {
             $py = $candidate
@@ -149,10 +154,14 @@ function Invoke-Addons([string]$ModeName) {
     }
     if (-not $py) {
         if ($Dry) {
-            Say "dry-run: would configure addons: $($With -join ',')"
+            $shown = if ($Names.Count -gt 0) { $Names -join ',' } else { 'all' }
+            Say "dry-run: would configure ${Kind}: $shown"
             return
         }
-        Die 'missing scripts/apply_addons.py'
+        if ($ModeName -eq 'uninstall' -and -not (Test-Path -LiteralPath $toolDir)) {
+            return
+        }
+        Die "missing scripts/$ScriptName"
     }
     $pyArgs = @($py, '--hermes-home', $FullHome)
     if ($AddonRoot) {
@@ -160,17 +169,48 @@ function Invoke-Addons([string]$ModeName) {
     }
     if ($Dry) { $pyArgs += '--dry-run' }
     if ($ModeName -eq 'uninstall') { $pyArgs += '--uninstall' }
-    if ($With.Count -gt 0) { $pyArgs += @('--with', ($With -join ',')) }
+    if ($Names.Count -gt 0) { $pyArgs += @('--with', ($Names -join ',')) }
     & $python.Source @pyArgs
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-if ($Uninstall -and $With.Count -gt 0) {
-    Invoke-Addons 'uninstall'
+function Invoke-Addons([string]$ModeName) {
+    $marker = Join-Path (Join-Path $FullHome 'hstack') '.hstack-addons'
+    if ($ModeName -eq 'uninstall' -and $AddonWith.Count -eq 0 -and -not (Test-Path -LiteralPath $marker)) {
+        return
+    }
+    Invoke-PythonTool 'addons' 'apply_addons.py' $AddonWith $ModeName
+}
+
+function Invoke-Hooks([string]$ModeName) {
+    $root = Join-Path $FullHome 'hstack'
+    $marker = Join-Path $root '.hstack-hooks'
+    $state = Join-Path $root 'hooks.json'
+    if ($ModeName -eq 'uninstall' -and $HookWith.Count -eq 0 -and -not (Test-Path -LiteralPath $marker) -and -not (Test-Path -LiteralPath $state)) {
+        return
+    }
+    Invoke-PythonTool 'hooks' 'apply_hooks.py' $HookWith $ModeName
+}
+
+function Test-CreatedConfig {
+    foreach ($name in @('addons.json', 'hooks.json')) {
+        $state = Join-Path (Join-Path $FullHome 'hstack') $name
+        if (Test-Path -LiteralPath $state) {
+            $text = [System.IO.File]::ReadAllText($state)
+            if ($text.Contains('"created_config": true')) { return $true }
+        }
+    }
+    return $false
+}
+
+if ($Uninstall -and ($AddonWith.Count -gt 0 -or $HookWith.Count -gt 0)) {
+    if ($AddonWith.Count -gt 0) { Invoke-Addons 'uninstall' }
+    if ($HookWith.Count -gt 0) { Invoke-Hooks 'uninstall' }
     exit 0
 }
 
 if ($Uninstall) {
+    $configWasOurs = Test-CreatedConfig
     if (-not (Test-Path -LiteralPath $Dest)) {
         Say "nothing to remove at $Dest"
     } else {
@@ -189,6 +229,14 @@ if ($Uninstall) {
         }
     }
     Invoke-Addons 'uninstall'
+    Invoke-Hooks 'uninstall'
+    if (-not $Dry -and $configWasOurs) {
+        $configPath = Join-Path $FullHome 'config.yaml'
+        if (Test-Path -LiteralPath $configPath) {
+            $flat = ([System.IO.File]::ReadAllText($configPath) -replace '\s', '')
+            if (-not $flat) { Remove-Item -LiteralPath $configPath -Force }
+        }
+    }
     exit 0
 }
 
@@ -227,6 +275,7 @@ if ($Dry) {
         Say "dry-run: would verify $Sum"
     }
     Invoke-Addons 'install'
+    Invoke-Hooks 'install'
     exit 0
 }
 
@@ -299,7 +348,7 @@ if ($links.Count -gt 0) {
     Die 'refusing to copy a link or special file from the skill tree'
 }
 
-$ver = '0.1.0'
+$ver = '0.2.0'
 $versionFile = if ($AddonRoot) { Join-Path $AddonRoot 'VERSION' } else { $null }
 if ($versionFile -and (Test-Path -LiteralPath $versionFile)) {
     $digits = ([System.IO.File]::ReadAllText($versionFile) -replace '[^0-9.]', '')
@@ -342,6 +391,7 @@ if (Test-Path -LiteralPath $Dest) {
 
 Say "installed into $Dest"
 Invoke-Addons 'install'
+Invoke-Hooks 'install'
 if ($Mode -eq 'remote') {
     $downloaded = Split-Path -Parent $AddonRoot
     if ($downloaded -and (Test-Path -LiteralPath $downloaded)) {

@@ -59,8 +59,8 @@ const version = skills[0].version;
 if (!skills.every((skill) => skill.version === version)) {
   throw new Error("skill versions differ");
 }
-if (version !== "0.1.0") {
-  throw new Error(`version is ${version}; dist publishes hstack-v0.1.0.tar.gz`);
+if (version !== "0.2.0") {
+  throw new Error(`version is ${version}; dist publishes hstack-v0.2.0.tar.gz`);
 }
 
 const idle = tokens("  hstack:", "category") + skills.reduce((sum, skill) => sum + skill.idle, 0);
@@ -69,7 +69,7 @@ const planning = ["hstack", "reframe", "shape"].reduce((sum, name) => {
 }, 0);
 const bodies = skills.reduce((sum, skill) => sum + skill.body, 0);
 
-if (idle !== 204 || planning !== 965 || bodies !== 3820) {
+if (idle !== 204 || planning !== 1052 || bodies !== 3907) {
   throw new Error(`measured idle ${idle}, planning ${planning}, bodies ${bodies}`);
 }
 
@@ -99,8 +99,12 @@ try {
   mkdirSync(path.join(top, "skills"), { recursive: true });
   mkdirSync(path.join(top, "scripts"), { recursive: true });
   mkdirSync(path.join(top, "bin"), { recursive: true });
-  cpSync(skillsRoot, path.join(top, "skills", "hstack"), { recursive: true });
+  mkdirSync(path.join(top, "hooks"), { recursive: true });
+  const skipCache = (src) => !src.split(path.sep).includes("__pycache__");
+  cpSync(skillsRoot, path.join(top, "skills", "hstack"), { recursive: true, filter: skipCache });
+  cpSync(path.join(root, "hooks"), path.join(top, "hooks"), { recursive: true, filter: skipCache });
   cpSync(path.join(root, "scripts", "apply_addons.py"), path.join(top, "scripts", "apply_addons.py"));
+  cpSync(path.join(root, "scripts", "apply_hooks.py"), path.join(top, "scripts", "apply_hooks.py"));
   for (const helper of helpers) {
     cpSync(path.join(root, "bin", helper), path.join(top, "bin", helper));
   }
@@ -131,7 +135,14 @@ try {
   const required = [
     "hstack/VERSION",
     "hstack/skills/hstack/hstack/SKILL.md",
+    "hstack/skills/hstack/hstack/references/stacks.md",
+    "hstack/skills/hstack/hstack/scripts/hstack_stack.py",
     "hstack/scripts/apply_addons.py",
+    "hstack/scripts/apply_hooks.py",
+    "hstack/hooks/guard.py",
+    "hstack/hooks/save.py",
+    "hstack/hooks/suggest.py",
+    "hstack/hooks/hstack_hook.py",
     ...helpers.map((helper) => `hstack/bin/${helper}`),
   ];
   for (const name of required) {
@@ -151,9 +162,23 @@ try {
       throw new Error(`archive helper is not executable: ${helper}`);
     }
   }
+  const frozenVersion = "0.1.0";
+  const frozenSha = "0c8009ee04fb31126b76e4202c91eee14e8d5be7d1cd42ac0cee551012eeda6e";
+  const vendorArchive = path.join(site, "vendor", "dl", `hstack-v${frozenVersion}.tar.gz`);
+  const frozenBytes = readFileSync(vendorArchive);
+  const frozenDigest = crypto.createHash("sha256").update(frozenBytes).digest("hex");
+  if (frozenDigest !== frozenSha) {
+    throw new Error(`vendored hstack-v${frozenVersion}.tar.gz hash is ${frozenDigest}`);
+  }
+  const frozenTarget = path.join(dist, "dl", `hstack-v${frozenVersion}.tar.gz`);
+  writeFileSync(frozenTarget, frozenBytes);
+  copyFileSync(`${vendorArchive}.sha256`, `${frozenTarget}.sha256`);
   const latest = path.join(dist, "dl", "hstack.tar.gz");
   copyFileSync(versioned, latest);
   const hash = crypto.createHash("sha256").update(readFileSync(versioned)).digest("hex");
+  if (hash === frozenSha) {
+    throw new Error("0.2.0 archive matches the frozen 0.1.0 bytes");
+  }
   writeFileSync(`${versioned}.sha256`, `${hash}  hstack-v${version}.tar.gz\n`);
   writeFileSync(`${latest}.sha256`, `${hash}  hstack.tar.gz\n`);
   for (const published of ["install.sh", "install.ps1"]) {

@@ -24,7 +24,7 @@ Twelve skills for Hermes Agent. Frame the job, shape the change, prove it, and o
 curl -fsSL https://hstack.sh/install | sh
 ```
 
-The curl form downloads `install.sh` and the skill archive from hstack.sh, checks the sha256, and extracts into the Hermes skills directory. It does not clone this repository. `HSTACK_BASE_URL` points the download at another host, such as a `*.vercel.app` URL before DNS is in place. `HSTACK_VERSION=0.1.0` pins `hstack-v0.1.0.tar.gz` instead of the latest alias. The archive is one directory containing the skills, `scripts/apply_addons.py`, and the `bin/` helpers, so `--with` works from the curl form too.
+The curl form downloads `install.sh` and the skill archive from hstack.sh, checks the sha256, and extracts into the Hermes skills directory. It does not clone this repository. `HSTACK_BASE_URL` points the download at another host, such as a `*.vercel.app` URL before DNS is in place. With no version set, the installer fetches the latest alias, `hstack.tar.gz`, which is 0.2.0. `HSTACK_VERSION=0.1.0` still fetches `hstack-v0.1.0.tar.gz`. The archive is one directory containing the skills, `scripts/apply_addons.py`, `scripts/apply_hooks.py`, `hooks/`, and the `bin/` helpers, so `--with` works from the curl form too.
 
 From a checkout of this repo, `sh install.sh` installs the skills beside the script. A second run replaces the HStack skills and leaves every other skill alone. Pass `--dry-run` to print the plan and write nothing.
 
@@ -37,10 +37,10 @@ GStack's Hermes host puts every skill in the always-on index. HStack puts one ro
 | | GStack on Hermes | HStack |
 |---|---:|---:|
 | Idle index | 1,182 | 204 |
-| Planning load | 62,514 of SKILL.md, plus a ~5,600 preamble | 965 |
-| All SKILL.md bodies | 420,401 | 3,820 |
+| Planning load | 62,514 of SKILL.md, plus a ~5,600 preamble | 1,052 |
+| All SKILL.md bodies | 420,401 | 3,907 |
 
-The planning path is `hstack`, `reframe`, and `shape`. 965 against 62,514 is under 2% of that context. The idle index is about 6× smaller. These HStack figures are measured from the files in this repo. 204 is the index cost of these descriptions, including the `hstack` category header. The v0.1 ceilings in PLAN.md are 2,500 and 8,550.
+The planning path is `hstack`, `reframe`, and `shape`. 1,052 against 62,514 is under 2% of that context. The idle index is about 6× smaller. These HStack figures are measured from the files in this repo. 204 is the index cost of these descriptions, including the `hstack` category header. The v0.1 ceilings in PLAN.md are 2,500 and 8,550.
 
 ## Skills
 
@@ -92,8 +92,14 @@ sh install.sh --uninstall --with browser
 | `test` | `hstack-test` |
 | `security` | `hstack-scan`, only if gitleaks or osv-scanner is already installed |
 | `trail` | `hstack-decisions` |
+| `hermes-hooks` | `pre_tool_call` guard, `on_session_finalize` session stamp, `pre_llm_call` playbook hint |
+| `hermes-hooks-guard` | The guard only |
+| `hermes-hooks-save` | The session stamp only |
+| `hermes-hooks-suggest` | The playbook hint only |
 
-Helpers are copied to `$HERMES_HOME/hstack/bin`. MCP entries use an `hstack_` prefix in `config.yaml`. `--dry-run` writes nothing. `--uninstall` removes the skills and every addon this installer created. `--uninstall --with browser` removes only that addon. The installer does not download Playwright, gitleaks, or osv-scanner.
+Helpers are copied to `$HERMES_HOME/hstack/bin`. MCP entries use an `hstack_` prefix in `config.yaml`. Hook shims are copied to `$HERMES_HOME/hstack/hooks` and registered under `hooks:` with a backup of `config.yaml`. A default install writes neither. `--dry-run` writes nothing. `--uninstall` removes the skills, the addons, and the hooks this installer created. `--uninstall --with browser` removes only that addon. `--uninstall --with hermes-hooks-guard` removes only that hook. The installer does not download Playwright, gitleaks, or osv-scanner, and it does not fetch another stack.
+
+Outside stacks stay out of the index. After one HStack playbook, the router may read `skills/hstack/hstack/references/stacks.md` and suggest at most one of gstack, pstack, tstack, or gbrain. It names the stack and why, and it loads nothing until you say yes. A no lasts for the session. If you say yes to installing, the script checks the pinned sha256 and extracts outside `skills/hstack`. It does not run that project's setup.
 
 ## Uninstall
 
@@ -101,7 +107,7 @@ Helpers are copied to `$HERMES_HOME/hstack/bin`. MCP entries use an `hstack_` pr
 curl -fsSL https://hstack.sh/install | sh -s -- --uninstall
 ```
 
-From a checkout: `sh install.sh --uninstall`. This removes `skills/hstack` only when this installer created it, and it removes addons this installer created.
+From a checkout: `sh install.sh --uninstall`. This removes `skills/hstack` only when this installer created it, and it removes addons and hooks this installer created.
 
 ---
 

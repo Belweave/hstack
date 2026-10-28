@@ -8,7 +8,8 @@
 # any other skill, and it will not delete a directory it did not mark.
 # The curl form downloads the archive from hstack.sh. The repository is private,
 # so this script does not fetch from a git host. The archive also carries the
-# addon helpers under bin/ and scripts/apply_addons.py.
+# addon helpers under bin/, scripts/apply_addons.py, scripts/apply_hooks.py,
+# and hooks/.
 
 set -eu
 
@@ -28,6 +29,8 @@ usage() {
     'Installs into the Hermes home, at skills/hstack. The usual home is .hermes in your home directory.' \
     'The default install is skills only. --with adds an optional addon:' \
     'browser, github, docs, search, perf, test, security, trail.' \
+    '--with hermes-hooks adds optional shell hooks. Subsets are' \
+    'hermes-hooks-guard, hermes-hooks-save, and hermes-hooks-suggest.' \
     'The curl form downloads the archive from hstack.sh.' \
     'HSTACK_BASE_URL overrides that host. HSTACK_VERSION pins a release.' \
     'Running this file from a git checkout installs that checkout.'
@@ -55,9 +58,19 @@ cleanup() {
 
 trap cleanup EXIT
 
+ADDON_WITH=
+HOOK_WITH=
+
 addon_ok() {
   case "$1" in
     browser|github|docs|search|perf|test|security|trail) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+hook_ok() {
+  case "$1" in
+    hermes-hooks|hermes-hooks-guard|hermes-hooks-save|hermes-hooks-suggest) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -95,8 +108,15 @@ if [ -n "$WITH" ]; then
       *,*) _rest=${_rest#*,} ;;
       *) _rest= ;;
     esac
-    if [ -z "$_addon" ] || ! addon_ok "$_addon"; then
-      die "unknown addon: ${_addon:-empty}"
+    if [ -z "$_addon" ]; then
+      die "unknown addon: empty"
+    fi
+    if addon_ok "$_addon"; then
+      ADDON_WITH="${ADDON_WITH:+$ADDON_WITH,}${_addon}"
+    elif hook_ok "$_addon"; then
+      HOOK_WITH="${HOOK_WITH:+$HOOK_WITH,}${_addon}"
+    else
+      die "unknown addon: $_addon"
     fi
   done
 fi
@@ -176,32 +196,32 @@ if [ -f "$script" ]; then
   SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$script")" && pwd -P)
 fi
 
-run_addons() {
-  _mode=$1
-  if [ "$_mode" != uninstall ] && [ -z "$WITH" ]; then
+run_python() {
+  _kind=$1
+  _script=$2
+  _names=$3
+  _mode=$4
+  if [ "$_mode" != uninstall ] && [ -z "$_names" ]; then
     return 0
   fi
-  if [ "$_mode" = uninstall ] && [ -z "$WITH" ] && [ ! -e "$HERMES_HOME/hstack" ]; then
-    return 0
-  fi
-  command -v python3 >/dev/null 2>&1 || die "python3 is required for addons"
+  command -v python3 >/dev/null 2>&1 || die "python3 is required for $_kind"
   _py=
-  if [ -n "$ADDON_ROOT" ] && [ -f "$ADDON_ROOT/scripts/apply_addons.py" ]; then
-    _py=$ADDON_ROOT/scripts/apply_addons.py
-  elif [ -f "$HERMES_HOME/hstack/apply_addons.py" ]; then
-    _py=$HERMES_HOME/hstack/apply_addons.py
-  elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/scripts/apply_addons.py" ]; then
-    _py=$SCRIPT_DIR/scripts/apply_addons.py
+  if [ -n "$ADDON_ROOT" ] && [ -f "$ADDON_ROOT/scripts/$_script" ]; then
+    _py=$ADDON_ROOT/scripts/$_script
+  elif [ -f "$HERMES_HOME/hstack/$_script" ]; then
+    _py=$HERMES_HOME/hstack/$_script
+  elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/scripts/$_script" ]; then
+    _py=$SCRIPT_DIR/scripts/$_script
   fi
   if [ -z "$_py" ]; then
     if [ "$_mode" = uninstall ] && [ ! -d "$HERMES_HOME/hstack" ]; then
       return 0
     fi
     if [ "$DRY" -eq 1 ]; then
-      say "dry-run: would configure addons: ${WITH:-all}"
+      say "dry-run: would configure $_kind: ${_names:-all}"
       return 0
     fi
-    die "missing scripts/apply_addons.py"
+    die "missing scripts/$_script"
   fi
   _source=$ADDON_ROOT
   if [ -z "$_source" ] && [ -n "$SCRIPT_DIR" ]; then
@@ -217,18 +237,60 @@ run_addons() {
   if [ "$_mode" = uninstall ]; then
     set -- "$@" --uninstall
   fi
-  if [ -n "$WITH" ]; then
-    set -- "$@" --with "$WITH"
+  if [ -n "$_names" ]; then
+    set -- "$@" --with "$_names"
   fi
   "$@"
 }
 
+run_addons() {
+  _mode=$1
+  if [ "$_mode" = uninstall ] && [ -z "$ADDON_WITH" ] && [ ! -e "$HERMES_HOME/hstack/.hstack-addons" ]; then
+    return 0
+  fi
+  run_python addons apply_addons.py "$ADDON_WITH" "$_mode"
+}
+
+run_hooks() {
+  _mode=$1
+  if [ "$_mode" = uninstall ] && [ -z "$HOOK_WITH" ] && [ ! -e "$HERMES_HOME/hstack/.hstack-hooks" ] && [ ! -e "$HERMES_HOME/hstack/hooks.json" ]; then
+    return 0
+  fi
+  run_python hooks apply_hooks.py "$HOOK_WITH" "$_mode"
+}
+
+drop_empty_config() {
+  if [ "$1" -ne 1 ] || [ ! -f "$HERMES_HOME/config.yaml" ]; then
+    return 0
+  fi
+  _flat=$(tr -d '[:space:]' < "$HERMES_HOME/config.yaml" || true)
+  if [ -z "$_flat" ]; then
+    rm -f "$HERMES_HOME/config.yaml"
+  fi
+}
+
+config_was_ours() {
+  _ours=0
+  for _state in "$HERMES_HOME/hstack/addons.json" "$HERMES_HOME/hstack/hooks.json"; do
+    if [ -f "$_state" ] && grep -q '"created_config": true' "$_state"; then
+      _ours=1
+    fi
+  done
+  printf '%s\n' "$_ours"
+}
+
 if [ "$UNINSTALL" -eq 1 ] && [ -n "$WITH" ]; then
-  run_addons uninstall
+  if [ -n "$ADDON_WITH" ]; then
+    run_addons uninstall
+  fi
+  if [ -n "$HOOK_WITH" ]; then
+    run_hooks uninstall
+  fi
   exit 0
 fi
 
 if [ "$UNINSTALL" -eq 1 ]; then
+  _ours=$(config_was_ours)
   if [ ! -d "$DEST" ]; then
     say "nothing to remove at $DEST"
   else
@@ -243,6 +305,10 @@ if [ "$UNINSTALL" -eq 1 ]; then
     fi
   fi
   run_addons uninstall
+  run_hooks uninstall
+  if [ "$DRY" -eq 0 ]; then
+    drop_empty_config "$_ours"
+  fi
   exit 0
 fi
 
@@ -295,6 +361,7 @@ if [ "$DRY" -eq 1 ]; then
     say "dry-run: would verify $SUM"
   fi
   run_addons install
+  run_hooks install
   exit 0
 fi
 
@@ -379,7 +446,7 @@ if find "$SRC" \( -type l -o -type b -o -type c -o -type p -o -type s \) -print 
   die "refusing to copy a link or special file from the skill tree"
 fi
 
-ver=0.1.0
+ver=0.2.0
 if [ -n "$ADDON_ROOT" ] && [ -f "$ADDON_ROOT/VERSION" ]; then
   got=$(tr -cd '0-9.' < "$ADDON_ROOT/VERSION")
   if [ -n "$got" ]; then
@@ -422,3 +489,4 @@ fi
 
 say "installed into $DEST"
 run_addons install
+run_hooks install

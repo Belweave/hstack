@@ -38,6 +38,14 @@
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=31536000, immutable
 
+/dl/hstack-v0.2.0.tar.gz
+  Content-Type: application/gzip
+  Cache-Control: public, max-age=31536000, immutable
+
+/dl/hstack-v0.2.0.tar.gz.sha256
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=31536000, immutable
+
 /fonts/*
   Access-Control-Allow-Origin: *
   Cache-Control: public, max-age=31536000, immutable

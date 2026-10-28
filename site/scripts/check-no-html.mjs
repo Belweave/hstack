@@ -36,6 +36,8 @@ const urls = new Set([
   "/dl/hstack.tar.gz.sha256",
   "/dl/hstack-v0.1.0.tar.gz",
   "/dl/hstack-v0.1.0.tar.gz.sha256",
+  "/dl/hstack-v0.2.0.tar.gz",
+  "/dl/hstack-v0.2.0.tar.gz.sha256",
 ]);
 const external = new Set();
 
@@ -104,8 +106,16 @@ try {
   const { createHash } = await import("node:crypto");
   const actual = createHash("sha256").update(archive).digest("hex");
   if (actual !== digest) fail("hstack.tar.gz does not match its sha256");
-  const versioned = Buffer.from(await (await fetch(`${base}/dl/hstack-v0.1.0.tar.gz`)).arrayBuffer());
-  if (!versioned.equals(archive)) fail("latest alias is not the versioned archive");
+  const current = Buffer.from(await (await fetch(`${base}/dl/hstack-v0.2.0.tar.gz`)).arrayBuffer());
+  if (!current.equals(archive)) fail("latest alias is not hstack-v0.2.0.tar.gz");
+  const frozen = Buffer.from(await (await fetch(`${base}/dl/hstack-v0.1.0.tar.gz`)).arrayBuffer());
+  const frozenHash = createHash("sha256").update(frozen).digest("hex");
+  if (frozenHash !== "0c8009ee04fb31126b76e4202c91eee14e8d5be7d1cd42ac0cee551012eeda6e") {
+    fail("hstack-v0.1.0.tar.gz bytes changed");
+  }
+  if (frozen.equals(archive)) fail("latest alias is still the 0.1.0 archive");
+  const frozenSum = await (await fetch(`${base}/dl/hstack-v0.1.0.tar.gz.sha256`)).text();
+  if (!frozenSum.startsWith(`${frozenHash}  hstack-v0.1.0.tar.gz`)) fail("v0.1.0 checksum file drifted");
 
   const page = await (await fetch(`${base}/no-such-page`)).text();
   if (!page.includes("<html")) fail("site 404 should stay an HTML page");

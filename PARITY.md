@@ -25,7 +25,7 @@ Each row has one disposition:
 | `helper-script` | An original script under `bin/`, installed only with an addon flag. |
 | `skip` | Deliberately not built. The reason says why, and where the underlying job goes if it is real. |
 
-`on_demand` is `0` for a skip, `skill:<name>` when invoking that skill directly, or a route slug. A route slug is the upper bound of what `skill_view` loads when that route fires: the `hstack` skill, `references/routes.md`, the one playbook, and every `skill_view` that playbook names, including branches that return early. One extra hop adds `skill_view` targets inside an HStack skill body. Ship loads bundled `github` on that hop. Idle cost is only the index. It does not include those files.
+`on_demand` is `0` for a skip, `skill:<name>` when invoking that skill directly, or a route slug. A route slug is the upper bound of what `skill_view` loads when that route fires: the `hstack` skill, `references/routes.md`, the one playbook, `references/stacks.md` after that playbook, and every `skill_view` that playbook names, including branches that return early. One extra hop adds `skill_view` targets inside an HStack skill body. Ship loads bundled `github` on that hop. Idle cost is only the index. It does not include those files.
 
 Measured tokens use Hermes's estimator, `ceil(utf-8 bytes / 4)` with CJK at one token per character (`estimate_tokens_rough` in `agent/model_metadata.py`). Bundled skills use the frozen counts below, from hermes-agent `ee7e0f517232fb619c72e49d7e648436bddc598e`. A direct skill row costs only that skill's body.
 
@@ -37,7 +37,7 @@ Idle is 204 for every session. The next table is the extra cost when a route fir
 
 | Stack | Idle index |
 |---|---:|
-| HStack v0.1 | 204 |
+| HStack v0.2 | 204 |
 | GStack on Hermes, prefixed names | 1,182 |
 | PStack if copied | 1,256 |
 | TStack if copied | 152 |
@@ -45,48 +45,48 @@ Idle is 204 for every session. The next table is the extra cost when a route fir
 
 ## Route budget
 
-Each playbook stays at or under its budget. `references/routes.md` is the catalog the router loads. The catalog measures 390 tokens. The `hstack` skill body stays at or under 700 tokens. Idle stays 204 because none of these files are index rows.
+Each playbook stays at or under its budget. `references/routes.md` is the catalog the router loads. The catalog measures 390 tokens. The `hstack` skill body stays at or under 700 tokens. Idle stays 204 because none of these files are index rows. `references/stacks.md` is part of every route upper bound and is not part of the idle index.
 
 | route | when it fires | budget playbook tokens | measured playbook tokens | measured route upper bound |
 |---|---|---:|---:|---:|
-| frame | Deciding what to build | 400 | 90 | 1445 |
-| feature | New or changed behavior | 450 | 121 | 1444 |
-| fix | Something is broken | 350 | 123 | 7191 |
-| check | A diff needs a hard look | 400 | 145 | 3562 |
-| land | The work should become a pull request | 300 | 69 | 1726 |
-| refactor | Behavior-preserving restructure | 500 | 142 | 5776 |
-| design | Visual critique, layout, developer friction | 500 | 209 | 5725 |
-| qa | Reproduce on a real surface, or report only | 500 | 215 | 3356 |
-| perf | A number, a trace of cost, a slow path | 500 | 164 | 1142 |
-| trace | A live symptom or a captured profile | 500 | 110 | 757 |
-| retro | Weekly retro or a quality snapshot | 500 | 92 | 1351 |
-| docs | Docs, README, release notes, PDF | 500 | 121 | 4901 |
-| security | Auth, injection, secrets, dependencies | 500 | 142 | 1183 |
-| explain | How or why a subsystem works | 500 | 121 | 768 |
-| memory | Save or restore working context | 500 | 106 | 753 |
-| author | Write or edit a skill | 500 | 136 | 4446 |
-| prose | Plain wording, strip tells | 500 | 110 | 11569 |
-| experiment | Throwaway prototype | 500 | 87 | 2915 |
-| parallel | Slices or competing attempts | 500 | 98 | 1204 |
-| overnight | Finish while the user is away | 500 | 181 | 2563 |
-| pickup | Resume, pause, or catch up | 500 | 109 | 992 |
-| worktree | Clean worktrees | 500 | 62 | 709 |
-| spec | Written spec or a phased plan | 500 | 143 | 1498 |
-| eval | Test a prompt or skill change | 500 | 95 | 742 |
-| deploy | Deploy or watch a host the user named | 500 | 146 | 1803 |
-| browse | Drive a page, screenshot, scrape | 500 | 266 | 3076 |
-| safety | Destructive commands or a write boundary | 500 | 117 | 764 |
-| decisions | A reviewable decision trail | 500 | 93 | 740 |
-| triage | Triage or reproduce a report | 500 | 79 | 726 |
-| types | Types, including TypeScript | 500 | 114 | 1398 |
-| verify | A property a test cannot reach | 500 | 141 | 788 |
-| diagram | A diagram | 500 | 91 | 2196 |
+| frame | Deciding what to build | 400 | 90 | 2457 |
+| feature | New or changed behavior | 450 | 121 | 2456 |
+| fix | Something is broken | 350 | 123 | 8203 |
+| check | A diff needs a hard look | 400 | 145 | 4574 |
+| land | The work should become a pull request | 300 | 69 | 2738 |
+| refactor | Behavior-preserving restructure | 500 | 142 | 6788 |
+| design | Visual critique, layout, developer friction | 500 | 209 | 6737 |
+| qa | Reproduce on a real surface, or report only | 500 | 215 | 4368 |
+| perf | A number, a trace of cost, a slow path | 500 | 164 | 2154 |
+| trace | A live symptom or a captured profile | 500 | 110 | 1769 |
+| retro | Weekly retro or a quality snapshot | 500 | 92 | 2363 |
+| docs | Docs, README, release notes, PDF | 500 | 121 | 5913 |
+| security | Auth, injection, secrets, dependencies | 500 | 142 | 2195 |
+| explain | How or why a subsystem works | 500 | 121 | 1780 |
+| memory | Save or restore working context | 500 | 154 | 1813 |
+| author | Write or edit a skill | 500 | 136 | 5458 |
+| prose | Plain wording, strip tells | 500 | 110 | 12581 |
+| experiment | Throwaway prototype | 500 | 87 | 3927 |
+| parallel | Slices or competing attempts | 500 | 98 | 2216 |
+| overnight | Finish while the user is away | 500 | 181 | 3575 |
+| pickup | Resume, pause, or catch up | 500 | 109 | 2004 |
+| worktree | Clean worktrees | 500 | 62 | 1721 |
+| spec | Written spec or a phased plan | 500 | 143 | 2510 |
+| eval | Test a prompt or skill change | 500 | 95 | 1754 |
+| deploy | Deploy or watch a host the user named | 500 | 146 | 2815 |
+| browse | Drive a page, screenshot, scrape | 500 | 266 | 4088 |
+| safety | Destructive commands or a write boundary | 500 | 150 | 1809 |
+| decisions | A reviewable decision trail | 500 | 93 | 1752 |
+| triage | Triage or reproduce a report | 500 | 79 | 1738 |
+| types | Types, including TypeScript | 500 | 114 | 2410 |
+| verify | A property a test cannot reach | 500 | 141 | 1800 |
+| diagram | A diagram | 500 | 91 | 3208 |
 
 Direct skill loads, measured from the skill files in this tree. A `skill:<name>` row costs this many tokens and does not load a playbook:
 
 | skill | measured body tokens |
 |---|---:|
-| hstack | 257 |
+| hstack | 344 |
 | reframe | 363 |
 | shape | 345 |
 | prove | 331 |

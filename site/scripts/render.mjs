@@ -306,7 +306,7 @@ powershell -ExecutionPolicy Bypass -File .\\install.ps1
 :::`);
   const roster = skills.map((skill, index) => `<li><a href="/skills/${skill.name}"><span class="num">${String(index + 1).padStart(2, "0")}</span><span class="name">${esc(skill.name)}</span><span class="desc">${esc(skill.description)}</span><span class="tok">${fmt(skill.body)}</span></a></li>`).join("");
   const main = `<section class="band"><div class="idx">01</div><div class="band-body"><p class="kicker">Hermes Agent skills</p><h1>Everything Hermes needs.<br>Nothing it doesn't.</h1><p class="lede">Twelve skills. One router. A playbook loads only when the task needs it.</p></div></section>
-<section class="band"><div class="idx">02</div><div class="band-body"><h2>Install</h2><p>Version 0.1.0. The archive is checked with sha256 and extracted into <code>~/.hermes/skills/hstack/</code>. The installer does not clone the repository.</p>${install}<p><a href="/docs/install">Install, dry-run, and uninstall</a></p></div></section>
+<section class="band"><div class="idx">02</div><div class="band-body"><h2>Install</h2><p>Version ${esc(skills[0].version)}. The archive is checked with sha256 and extracted into <code>~/.hermes/skills/hstack/</code>. The installer does not clone the repository.</p>${install}<p><a href="/docs/install">Install, dry-run, and uninstall</a></p></div></section>
 <section class="band"><div class="idx">03</div><div class="band-body"><h2>Context</h2><p>Counts use Hermes's estimator, <code>ceil(bytes / 4)</code>. The planning path is <code>hstack</code>, <code>reframe</code>, and <code>shape</code>: ${fmt(planning)} tokens, under 2% of GStack. The idle index is about six times smaller.</p>
 <div class="table-wrap"><table><caption>Measured from this repository. GStack figures are the Hermes host.</caption><thead><tr><th scope="col">Measure</th><th scope="col">GStack on Hermes</th><th scope="col">HStack</th></tr></thead><tbody>
 <tr><th scope="row">Idle index</th><td>${fmt(gstack.idle)}</td><td class="fig">${fmt(idle)}</td></tr>
@@ -457,7 +457,7 @@ export async function emitSite({ site, root, dist, skills, idle, planning, bodie
       pathname,
       title: skill.name,
       description: skill.description,
-      main: sheet(side(skillLinks, pathname, "Skills"), `<p class="kicker">Skill</p><h1>${esc(skill.name)}</h1><p class="muted">${skill.idle} idle · ${fmt(skill.body)} body · v0.1.0</p><div class="prose">${md.parse(stripped)}${extra}</div>`),
+      main: sheet(side(skillLinks, pathname, "Skills"), `<p class="kicker">Skill</p><h1>${esc(skill.name)}</h1><p class="muted">${skill.idle} idle · ${fmt(skill.body)} body · v${esc(skill.version)}</p><div class="prose">${md.parse(stripped)}${extra}</div>`),
     }));
   }
 

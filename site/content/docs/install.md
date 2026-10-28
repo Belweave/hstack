@@ -41,7 +41,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 --dry-run
 
 ## Uninstall
 
-Uninstall removes `skills/hstack` only when this installer created it, and it removes add-ons this installer created. `--uninstall --with browser` removes only that add-on.
+Uninstall removes `skills/hstack` only when this installer created it, and it removes add-ons and hooks this installer created. `--uninstall --with browser` removes only that add-on. `--uninstall --with hermes-hooks` removes the hooks and leaves the skills.
 
 :::tabs
 :::tab macOS / Linux
@@ -56,12 +56,12 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 --uninstall
 
 ## Version and host
 
-`HSTACK_VERSION=0.1.0` pins `hstack-v0.1.0.tar.gz` instead of the latest alias. `HSTACK_BASE_URL` points the download at another host, such as a `*.vercel.app` URL before DNS is in place.
+With no version set, the installer fetches `/dl/hstack.tar.gz`, the latest alias. That alias is 0.2.0. `HSTACK_VERSION=0.1.0` still fetches `/dl/hstack-v0.1.0.tar.gz`, the previous archive, byte for byte. `HSTACK_BASE_URL` points the download at another host, such as a `*.vercel.app` URL before DNS is in place.
 
 ```sh install.sh
 curl -fsSL https://hstack.sh/install | HSTACK_VERSION=0.1.0 sh
 ```
 
-The archive is one directory. Inside it: the skills, `scripts/apply_addons.py`, and the `bin/` helpers. The published checksum files are `HEX  filename`, two spaces. A mismatch stops the install and does not write skills.
+The archive is one directory. Inside 0.2.0: the skills, `scripts/apply_addons.py`, `scripts/apply_hooks.py`, `hooks/`, and the `bin/` helpers. The published checksum files are `HEX  filename`, two spaces. A mismatch stops the install and does not write skills.
 
 WSL can run `install.sh`. The Windows script takes the same flags and the same archive.

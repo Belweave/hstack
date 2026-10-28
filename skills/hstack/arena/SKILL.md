@@ -1,7 +1,7 @@
 ---
 name: arena
 description: Try competing approaches, then keep the best parts.
-version: 0.1.0
+version: 0.2.0
 author: Preetham Kyanam
 license: MIT
 platforms: [linux, macos, windows]

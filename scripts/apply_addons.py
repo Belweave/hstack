@@ -193,13 +193,22 @@ def write_state(path: Path, state: dict) -> None:
     path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
 
 
+def hooks_owned(dest_root: Path) -> bool:
+    return (dest_root / ".hstack-hooks").is_file() or (dest_root / "hooks.json").is_file()
+
+
 def ensure_home_dir(dest_root: Path, dry_run: bool) -> None:
     if dest_root.is_symlink():
         die(f"refusing to follow symlink {dest_root}")
     marker = dest_root / MARKER_NAME
     if dest_root.exists() and not dest_root.is_dir():
         die(f"refusing {dest_root} (not a directory)")
-    if dest_root.is_dir() and any(dest_root.iterdir()) and not marker.is_file():
+    if (
+        dest_root.is_dir()
+        and any(dest_root.iterdir())
+        and not marker.is_file()
+        and not hooks_owned(dest_root)
+    ):
         die(f"refusing to overwrite non-empty {dest_root} (not an HStack addon install)")
     if dry_run:
         return
@@ -299,10 +308,15 @@ def main() -> int:
     state_path = dest_root / "addons.json"
     config = home / "config.yaml"
     uninstall_all = args.uninstall and not requested
-    if args.uninstall and not dest_root.exists():
+    if args.uninstall and not (dest_root / MARKER_NAME).is_file():
         say("no addons to remove")
         return 0
-    if dest_root.exists() and not (dest_root / MARKER_NAME).is_file() and any(dest_root.iterdir()):
+    if (
+        dest_root.exists()
+        and not (dest_root / MARKER_NAME).is_file()
+        and any(dest_root.iterdir())
+        and not hooks_owned(dest_root)
+    ):
         die(f"refusing to overwrite non-empty {dest_root} (not an HStack addon install)")
     state = read_state(state_path) if state_path.is_file() else {"addons": [], "created_config": False}
     if uninstall_all:

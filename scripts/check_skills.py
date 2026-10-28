@@ -105,6 +105,9 @@ PLAYBOOKS = {
 
 ROUTES_FILE = "routes.md"
 ROUTES_CEILING = 500
+STACKS_FILE = "stacks.md"
+STACKS_CEILING = 1400
+ROUTER_SCRIPT = "scripts/hstack_stack.py"
 
 # Frozen at hermes-agent ee7e0f517232fb619c72e49d7e648436bddc598e.
 BUNDLED = {
@@ -288,8 +291,8 @@ def check_skills() -> dict[str, int]:
             fail(f"{name}: description must be one sentence of at most 60 characters")
         if clip_description(desc) != desc or clip_description_stable(desc) != desc:
             fail(f"{name}: Hermes would clip the description")
-        if meta.get("version") != "0.1.0":
-            fail(f"{name}: version must be 0.1.0")
+        if meta.get("version") != "0.2.0":
+            fail(f"{name}: version must be 0.2.0")
         if meta.get("license") != "MIT":
             fail(f"{name}: license must be MIT")
         if meta.get("author") != "Preetham Kyanam":
@@ -333,7 +336,7 @@ def check_skills() -> dict[str, int]:
 
 def check_playbooks() -> dict[str, int]:
     ref = SKILL_ROOT / "hstack" / "references"
-    expected = sorted([*PLAYBOOKS, ROUTES_FILE])
+    expected = sorted([*PLAYBOOKS, ROUTES_FILE, STACKS_FILE])
     found = sorted(p.name for p in ref.glob("*.md")) if ref.is_dir() else []
     if found != expected:
         fail(f"playbooks are {found}, expected {expected}")
@@ -341,18 +344,19 @@ def check_playbooks() -> dict[str, int]:
     if other:
         fail(f"unexpected files in references: {other}")
     sizes: dict[str, int] = {}
-    ceilings = {**PLAYBOOKS, ROUTES_FILE: ROUTES_CEILING}
+    ceilings = {**PLAYBOOKS, ROUTES_FILE: ROUTES_CEILING, STACKS_FILE: STACKS_CEILING}
     for name, ceiling in ceilings.items():
         text = (ref / name).read_text(encoding="utf-8")
         sizes[name] = estimate_tokens(text)
         if sizes[name] > ceiling:
             fail(f"{name}: playbook is {sizes[name]} tokens, ceiling is {ceiling}")
-        if name != ROUTES_FILE and sizes[name] > 500:
+        if name not in (ROUTES_FILE, STACKS_FILE) and sizes[name] > 500:
             fail(f"{name}: playbook exceeds the 500 token cap")
         blob = text.lower()
-        for banned in BANNED:
-            if banned in blob:
-                fail(f"{name}: playbook contains {banned}")
+        if name != STACKS_FILE:
+            for banned in BANNED:
+                if banned in blob:
+                    fail(f"{name}: playbook contains {banned}")
         prose = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
         for util in SHELL_UTILS:
             if f"`{util}`" in prose:
@@ -360,7 +364,12 @@ def check_playbooks() -> dict[str, int]:
     stray = [
         p.relative_to(SKILL_ROOT / "hstack").as_posix()
         for p in (SKILL_ROOT / "hstack").rglob("*")
-        if p.is_file() and p.name != "SKILL.md" and p.parent.name != "references"
+        if p.is_file()
+        and p.suffix != ".pyc"
+        and "__pycache__" not in p.parts
+        and p.name != "SKILL.md"
+        and p.parent.name != "references"
+        and p.relative_to(SKILL_ROOT / "hstack").as_posix() != ROUTER_SCRIPT
     ]
     if stray:
         fail(f"unexpected files beside the router: {stray}")
@@ -422,8 +431,12 @@ def named_views(text: str) -> list[str]:
 
 
 def route_upper_bound(route: str, bodies: dict[str, int], routes_tokens: int) -> int:
+    router = (SKILL_ROOT / "hstack" / "SKILL.md").read_text(encoding="utf-8")
+    if "references/stacks.md" not in router:
+        fail("router must load references/stacks.md after the playbook")
+    stacks = (SKILL_ROOT / "hstack" / "references" / STACKS_FILE).read_text(encoding="utf-8")
     playbook = (SKILL_ROOT / "hstack" / "references" / f"{route}.md").read_text(encoding="utf-8")
-    total = bodies["hstack"] + routes_tokens + estimate_tokens(playbook)
+    total = bodies["hstack"] + routes_tokens + estimate_tokens(playbook) + estimate_tokens(stacks)
     seen = {"hstack"}
     for name in named_views(playbook):
         if name in seen:

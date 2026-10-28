@@ -88,6 +88,18 @@
       ]
     },
     {
+      "source": "/dl/hstack-v0.2.0.tar.gz",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/dl/hstack-v0.2.0.tar.gz.sha256",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
       "source": "/fonts/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
