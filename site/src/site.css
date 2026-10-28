@@ -40,6 +40,14 @@ code, pre, kbd, .code, .fig, td.fig {
 }
 ::selection { background: #1c3a2e; color: var(--text); }
 
+a:link,
+a:visited,
+a:hover,
+a:active {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
 .skip {
   position: absolute;
   left: 16px;
@@ -48,6 +56,13 @@ code, pre, kbd, .code, .fig, td.fig {
   background: var(--accent);
   color: var(--bg);
   padding: 10px 14px;
+  text-decoration: none;
+}
+.skip:link,
+.skip:visited,
+.skip:hover,
+.skip:active {
+  color: var(--bg);
   text-decoration: none;
 }
 .skip:focus { top: 12px; }
@@ -75,6 +90,13 @@ code, pre, kbd, .code, .fig, td.fig {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 14px;
+}
+.brand:link,
+.brand:visited,
+.brand:hover,
+.brand:active {
+  color: var(--text);
+  text-decoration: none;
 }
 .brand svg { display: block; }
 .menu {
@@ -157,10 +179,6 @@ h4 { margin: 22px 0 8px; font-size: 16px; letter-spacing: 0; }
 .prose p { margin: 0 0 16px; }
 .prose ul, .prose ol { margin: 0 0 16px; padding-left: 1.25em; }
 .prose li { margin: 4px 0; }
-.prose a, .site-foot a, .page > p a {
-  color: var(--accent);
-  text-underline-offset: 3px;
-}
 .muted { color: var(--muted); }
 .page > .kicker { margin-top: 0; }
 
@@ -394,7 +412,10 @@ pre.legal {
   line-height: 1.5;
 }
 .colophon { margin-top: 12px; }
-.colophon a { color: var(--muted); }
+.colophon a:link,
+.colophon a:visited,
+.colophon a:hover,
+.colophon a:active { color: var(--muted); }
 
 .playbook { margin-top: 36px; padding-top: 8px; border-top: 1px solid var(--line); }
 
