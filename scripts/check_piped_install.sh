@@ -116,6 +116,9 @@ link mkdir mkdir
 link dirname dirname
 link basename basename
 link pwd pwd
+if ! command -v bsdtar >/dev/null 2>&1; then
+  fail "bsdtar is missing; install libarchive-tools"
+fi
 ln -sf "$(command -v bsdtar)" "$MAC/tar"
 ln -sf /bin/sh "$MAC/sh"
 if [ -x "$MAC/sha256sum" ]; then
