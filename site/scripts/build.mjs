@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
-import zlib from "node:zlib";
-import esbuild from "esbuild";
+import { emitSite } from "./render.mjs";
 
 const site = path.resolve(import.meta.dirname, "..");
 const root = path.resolve(site, "..");
@@ -41,20 +40,6 @@ function field(md, key, file) {
   return match[1].trim();
 }
 
-function fmt(value) {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function esc(value) {
-  return value.replace(/[&<>"']/g, (ch) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[ch]));
-}
-
 const skills = ORDER.map((name) => {
   const file = path.join(skillsRoot, name, "SKILL.md");
   const md = readFileSync(file, "utf8");
@@ -88,58 +73,17 @@ if (idle !== 204 || planning !== 965 || bodies !== 3820) {
   throw new Error(`measured idle ${idle}, planning ${planning}, bodies ${bodies}`);
 }
 
-const stack = skills.map((skill) => {
-  const label = `${skill.name}. ${skill.description} ${skill.idle} idle tokens, ${fmt(skill.body)} body tokens.`;
-  return `<div class="row"><button class="plate" type="button" aria-expanded="false" aria-label="${esc(label)}"><span class="pname">${esc(skill.name)}</span><span class="pmeta">${skill.idle} idle · ${fmt(skill.body)} body</span></button><p class="pdesc">${esc(skill.description)}</p></div>`;
-}).join("");
-
-const grid = skills.map((skill) => {
-  return `<article class="skill"><h3>${esc(skill.name)}</h3><p>${esc(skill.description)}</p><p class="tokens">${skill.idle} idle · ${fmt(skill.body)} body</p></article>`;
-}).join("");
-
-function meter(title, hstack, gstack) {
-  const share = (hstack / gstack).toFixed(6);
-  return `<article><h3>${title}</h3><div class="meter"><div><span>HStack</span><div class="track"><span style="--share:${share}"></span></div><span class="num" data-count="${hstack}">${fmt(hstack)}</span></div><div><span>GStack</span><div class="track ghost"><span style="--share:1"></span></div><span class="num" data-count="${gstack}">${fmt(gstack)}</span></div></div></article>`;
-}
-
-const compare = `<div class="compare">${meter("Idle, every turn", idle, GSTACK.idle)}${meter("Planning load", planning, GSTACK.planning)}${meter("All skill bodies", bodies, GSTACK.bodies)}</div>`;
-
-const css = await esbuild.transform(readFileSync(path.join(site, "src", "styles.css"), "utf8"), {
-  loader: "css",
-  minify: true,
-});
-
-let html = readFileSync(path.join(site, "index.html"), "utf8");
-html = html.replace("/*__CSS__*/", () => css.code);
-html = html.replace("<!--__STACK__-->", () => stack);
-html = html.replace("<!--__GRID__-->", () => grid);
-html = html.replace("<!--__COMPARE__-->", () => compare);
-if (html.includes("__")) throw new Error("unreplaced template marker");
-
 rmSync(dist, { recursive: true, force: true });
-mkdirSync(path.join(dist, "assets"), { recursive: true });
-mkdirSync(path.join(dist, "dl"), { recursive: true });
-mkdirSync(path.join(dist, "fonts"), { recursive: true });
-writeFileSync(path.join(dist, "index.html"), html);
-cpSync(path.join(site, "public"), dist, { recursive: true });
-cpSync(path.join(site, "fonts"), path.join(dist, "fonts"), { recursive: true });
-copyFileSync(path.join(root, ".github", "social-preview.png"), path.join(dist, "social-preview.png"));
-copyFileSync(path.join(root, "install.sh"), path.join(dist, "install.sh"));
-copyFileSync(path.join(root, "install.ps1"), path.join(dist, "install.ps1"));
-copyFileSync(path.join(site, "_headers"), path.join(dist, "_headers"));
-copyFileSync(path.join(site, "_redirects"), path.join(dist, "_redirects"));
-
-await esbuild.build({
-  entryPoints: [path.join(site, "src", "main.js")],
-  bundle: true,
-  minify: true,
-  format: "esm",
-  target: "es2020",
-  outfile: path.join(dist, "assets", "app.js"),
+const jsGzip = await emitSite({
+  site,
+  root,
+  dist,
+  skills,
+  idle,
+  planning,
+  bodies,
+  gstack: GSTACK,
 });
-
-const jsGzip = zlib.gzipSync(readFileSync(path.join(dist, "assets", "app.js"))).length;
-if (jsGzip > 250 * 1024) throw new Error(`app.js is ${jsGzip} bytes gzipped`);
 
 const helpers = [
   "hstack-bench",

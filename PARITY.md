@@ -11,7 +11,7 @@ Measured from the checkouts named in [RESEARCH.md](RESEARCH.md), on 28 October 2
 | [cursor/plugins](https://github.com/cursor/plugins) `pstack/` | `c742dd61706fbacc1b95f1a20b7b988cf096ce6c` | 58 skills, 23 playbooks, Benny automations, agents, `watch-pr`, statechart scripts |
 | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | `ee7e0f517232fb619c72e49d7e648436bddc598e` | Skills, plugins, MCP, hooks, memory, cron, delegation, browser, terminal backends |
 
-All three stacks are MIT. This repo still does not copy their skill text, word lists, or scripts. No `NOTICE` file until a substantial portion is included. The helpers in the build that follows this file are original.
+All three stacks are MIT. This repo still does not copy their skill text, word lists, or scripts. MIT notices for the adapted material are in [THIRD_PARTY_NOTICES](https://github.com/Belweave/hstack/blob/main/THIRD_PARTY_NOTICES). The helpers in the build that follows this file are original.
 
 ## How a row is typed
 

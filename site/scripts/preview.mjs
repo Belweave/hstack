@@ -1,6 +1,7 @@
-import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import zlib from "node:zlib";
 
 const dist = path.resolve(import.meta.dirname, "..", "dist");
 
@@ -18,14 +19,22 @@ const types = {
   ".ps1": "text/plain; charset=utf-8",
 };
 
-function send(res, status, body, type, extra) {
-  res.writeHead(status, {
+function send(req, res, status, body, type, extra) {
+  const headers = {
     "Content-Type": type,
     "X-Content-Type-Options": "nosniff",
     "Cache-Control": "no-store",
     ...extra,
-  });
-  res.end(body);
+  };
+  let payload = Buffer.isBuffer(body) ? body : Buffer.from(body);
+  const compressible = /text|javascript|json|svg|xml/.test(type);
+  if (compressible && String(req.headers["accept-encoding"] || "").includes("gzip") && payload.length > 1024) {
+    payload = zlib.gzipSync(payload);
+    headers["Content-Encoding"] = "gzip";
+    headers.Vary = "Accept-Encoding";
+  }
+  res.writeHead(status, headers);
+  res.end(payload);
 }
 
 function loadHeaders(file) {
@@ -80,20 +89,20 @@ export function createPreview() {
     try {
       pathname = decodeURIComponent(requestUrl.pathname);
     } catch {
-      return send(res, 400, "bad request\n", "text/plain; charset=utf-8");
+      return send(req, res, 400, "bad request\n", "text/plain; charset=utf-8");
     }
     const host = String(req.headers.host || "").split(":")[0];
     const forwarded = String(req.headers["x-forwarded-proto"] || "");
     if ((host === "hstack.sh" || host === "www.hstack.sh") && forwarded !== "https") {
       const targetHost = host === "www.hstack.sh" ? "www.hstack.sh" : "hstack.sh";
-      return send(res, 301, "\n", "text/plain; charset=utf-8", {
+      return send(req, res, 301, "\n", "text/plain; charset=utf-8", {
         Location: `https://${targetHost}${pathname}${requestUrl.search}`,
       });
     }
     const original = pathname;
     const redirect = redirects.find((rule) => rule.from === original);
     if (redirect && (redirect.status === 301 || redirect.status === 302)) {
-      return send(res, redirect.status, "\n", "text/plain; charset=utf-8", {
+      return send(req, res, redirect.status, "\n", "text/plain; charset=utf-8", {
         Location: redirect.to,
       });
     }
@@ -101,28 +110,25 @@ export function createPreview() {
       pathname = redirect.to;
     }
     if (original.startsWith("/install/") && original !== "/install/") {
-      return send(res, 404, "not found\n", "text/plain; charset=utf-8");
-    }
-    const rel = pathname === "/" ? "/index.html" : pathname;
-    const file = path.normalize(path.join(dist, rel));
-    if (file !== dist && !file.startsWith(`${dist}${path.sep}`)) {
-      return send(res, 400, "bad request\n", "text/plain; charset=utf-8");
+      return send(req, res, 404, "not found\n", "text/plain; charset=utf-8");
     }
     const headerType = headersFor(original, headerRules)["content-type"];
-    if (existsSync(file) && statSync(file).isFile()) {
-      const type = headerType || types[path.extname(file)] || "application/octet-stream";
-      res.writeHead(200, {
-        "Content-Type": type,
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "no-store",
-      });
-      createReadStream(file).pipe(res);
-      return;
+    const bare = pathname === "/" ? "" : (pathname.endsWith("/") ? pathname.slice(0, -1) : pathname);
+    const candidates = pathname === "/" ? ["/index.html"] : [bare, `${bare}.html`, `${bare}/index.html`];
+    for (const rel of candidates) {
+      const candidate = path.normalize(path.join(dist, rel));
+      if (candidate !== dist && !candidate.startsWith(`${dist}${path.sep}`)) {
+        return send(req, res, 400, "bad request\n", "text/plain; charset=utf-8");
+      }
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        const type = headerType || types[path.extname(candidate)] || "application/octet-stream";
+        return send(req, res, 200, readFileSync(candidate), type);
+      }
     }
     if (original.startsWith("/install")) {
-      return send(res, 404, "not found\n", "text/plain; charset=utf-8");
+      return send(req, res, 404, "not found\n", "text/plain; charset=utf-8");
     }
-    return send(res, 404, readFileSync(path.join(dist, "404.html")), "text/html; charset=utf-8");
+    return send(req, res, 404, readFileSync(path.join(dist, "404.html")), "text/html; charset=utf-8");
   });
 }
 

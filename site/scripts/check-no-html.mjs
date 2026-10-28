@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { createPreview } from "./preview.mjs";
 
 const dist = path.resolve(import.meta.dirname, "..", "dist");
-const html = readFileSync(path.join(dist, "index.html"), "utf8");
 const server = createPreview();
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const { port } = server.address();
@@ -14,18 +13,60 @@ function fail(message) {
   process.exitCode = 1;
 }
 
-const urls = new Set(["/favicon.svg", "/social-preview.png", "/install", "/install/", "/install.sh", "/install.ps1"]);
-for (const match of html.matchAll(/(?:src|href)="(\/[^"]+)"/g)) urls.add(match[1]);
-const style = html.match(/<style>([\s\S]*?)<\/style>/);
-if (!style) fail("missing inlined css");
-else {
-  for (const match of style[1].matchAll(/url\(([^)]+)\)/g)) {
-    urls.add(match[1].replace(/['"]/g, ""));
+function walk(dir) {
+  const files = [];
+  for (const name of readdirSync(dir)) {
+    const file = path.join(dir, name);
+    if (statSync(file).isDirectory()) files.push(...walk(file));
+    else files.push(file);
   }
+  return files;
 }
-for (const name of ["hstack.tar.gz", "hstack.tar.gz.sha256", "hstack-v0.1.0.tar.gz", "hstack-v0.1.0.tar.gz.sha256"]) {
-  urls.add(`/dl/${name}`);
+
+const htmlFiles = walk(dist).filter((file) => file.endsWith(".html") && !file.endsWith(`${path.sep}og.html`));
+const urls = new Set([
+  "/favicon.svg",
+  "/social-preview.png",
+  "/install",
+  "/install/",
+  "/install.sh",
+  "/install.ps1",
+  "/fonts/LICENSE.txt",
+  "/dl/hstack.tar.gz",
+  "/dl/hstack.tar.gz.sha256",
+  "/dl/hstack-v0.1.0.tar.gz",
+  "/dl/hstack-v0.1.0.tar.gz.sha256",
+]);
+const external = new Set();
+
+function addUrl(raw) {
+  if (!raw || raw.startsWith("#") || raw.startsWith("mailto:")) return;
+  let url;
+  try {
+    url = new URL(raw, "https://hstack.sh");
+  } catch {
+    fail(`bad url ${raw}`);
+    return;
+  }
+  if (url.origin === "https://hstack.sh") urls.add(url.pathname);
+  else external.add(url.href);
 }
+
+for (const file of htmlFiles) {
+  const html = readFileSync(file, "utf8");
+  if (!html.includes("<html")) fail(`${file} is not an html document`);
+  if (!html.includes('href="/license"') || !html.includes('href="/notices"')) {
+    fail(`${file} is missing the MIT or third-party notices link`);
+  }
+  if (!html.includes("not affiliated with, endorsed by, or an official product of Nous Research")) {
+    fail(`${file} is missing the Nous disclaimer`);
+  }
+  for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) addUrl(match[1]);
+}
+
+const css = readFileSync(path.join(dist, "assets", "site.css"), "utf8");
+for (const match of css.matchAll(/url\(([^)]+)\)/g)) addUrl(match[1].replace(/['"]/g, ""));
+if (css.includes("<style>") || !css.includes("PaperMono")) fail("stylesheet is missing the self-hosted font");
 
 try {
   for (const url of urls) {
@@ -41,6 +82,11 @@ try {
       if (url === "/install.ps1" && !text.includes("HSTACK_BASE_URL")) fail(`${url} is not the Windows installer`);
       if (/<!doctype|<html/i.test(text)) fail(`${url} contains HTML`);
     }
+  }
+
+  for (const url of external) {
+    const response = await fetch(url, { redirect: "follow" });
+    if (response.status >= 400) fail(`${url} returned ${response.status}`);
   }
 
   for (const url of ["/install/missing", "/install/foo/bar"]) {
@@ -63,9 +109,10 @@ try {
 
   const page = await (await fetch(`${base}/no-such-page`)).text();
   if (!page.includes("<html")) fail("site 404 should stay an HTML page");
+  if (!page.includes('href="/notices"')) fail("site 404 is missing the notices link");
 } finally {
   await new Promise((resolve) => server.close(resolve));
 }
 
 if (process.exitCode) process.exit(process.exitCode);
-console.log(`check-no-html: ${urls.size} assets ok`);
+console.log(`check-no-html: ${htmlFiles.length} pages, ${urls.size} local urls, ${external.size} external urls`);
