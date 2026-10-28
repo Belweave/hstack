@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
-    "check": "node scripts/check-no-html.mjs && node scripts/check-pages.mjs"
+    "check": "node scripts/check-no-html.mjs && node scripts/check-pages.mjs && node scripts/check-vercel.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.10"

@@ -24,7 +24,7 @@ Twelve skills for Hermes Agent. Frame the job, shape the change, prove it, and o
 curl -fsSL https://hstack.sh/install | sh
 ```
 
-The curl form downloads `install.sh` and the skill archive from hstack.sh, checks the sha256, and extracts into the Hermes skills directory. It does not clone this repository. `HSTACK_BASE_URL` points the download at another host, such as a `*.pages.dev` URL before DNS is in place. `HSTACK_VERSION=0.1.0` pins `hstack-v0.1.0.tar.gz` instead of the latest alias. The archive is one directory containing the skills, `scripts/apply_addons.py`, and the `bin/` helpers, so `--with` works from the curl form too.
+The curl form downloads `install.sh` and the skill archive from hstack.sh, checks the sha256, and extracts into the Hermes skills directory. It does not clone this repository. `HSTACK_BASE_URL` points the download at another host, such as a `*.vercel.app` URL before DNS is in place. `HSTACK_VERSION=0.1.0` pins `hstack-v0.1.0.tar.gz` instead of the latest alias. The archive is one directory containing the skills, `scripts/apply_addons.py`, and the `bin/` helpers, so `--with` works from the curl form too.
 
 From a checkout of this repo, `sh install.sh` installs the skills beside the script. A second run replaces the HStack skills and leaves every other skill alone. Pass `--dry-run` to print the plan and write nothing.
 

@@ -27,5 +27,6 @@ jobs:
           npm run build
           node scripts/check-no-html.mjs
           node scripts/check-pages.mjs
+          node scripts/check-vercel.mjs
           cd ..
           sh scripts/check_piped_install.sh
