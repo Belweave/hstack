@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck -s sh install.sh scripts/check_install.sh
+      - name: Skills
+        run: python3 scripts/check_skills.py
+      - name: Installer
+        run: sh scripts/check_install.sh
