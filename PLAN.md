@@ -1,6 +1,6 @@
 # HStack v0.1 plan
 
-Twelve skills, written for Hermes, in our own words. Nothing in this file is implemented yet. The inventory and the license call are in [RESEARCH.md](RESEARCH.md).
+Twelve skills, written for Hermes, in our own words. v0.1 is in `skills/` and `install.sh`. The inventory and the license call are in [RESEARCH.md](RESEARCH.md).
 
 v0.1 is the sprint loop the three stacks share, minus the parts Hermes already runs and minus the product features that only make sense inside Claude Code, Cursor, Aside, or GStack's own browser.
 
@@ -215,6 +215,6 @@ Inline shell snippets stay off. No required API keys. No `~/.claude` paths. No C
 
 The check script in phase 2 should parse every `SKILL.md`, reject a description over 60 characters, reject a missing `name`, and reject a body over the ceiling in the table above. Shellcheck belongs to the installer, which is also phase 2.
 
-## Out of scope for this repo today
+## Shipped in v0.1
 
-No skill files, no installer, no `hstack.sh` script, no smoke test against a live Hermes. Those are the next phase. This plan is the contract for that work: twelve skills, 204 idle tokens, 8,550 tokens of body budget, and the cuts above left on the floor.
+The skills, the installer, and the check script follow this plan: twelve skills, 204 idle tokens, 8,550 tokens of body budget, and the cuts above left on the floor.
