@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Append one decision row to a TSV file.
+
+Columns: date, choice, rejected, reason. The reason is a single line.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import sys
+from pathlib import Path
+
+
+def clean(value: str) -> str:
+    flattened = " ".join(value.split())
+    if not flattened:
+        raise ValueError("empty field")
+    if "\t" in value:
+        raise ValueError("tab in field")
+    return flattened
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="hstack-decisions")
+    parser.add_argument("--choice", required=True)
+    parser.add_argument("--rejected", required=True)
+    parser.add_argument("--reason", required=True)
+    parser.add_argument("--file", default="decisions.tsv")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    try:
+        choice = clean(args.choice)
+        rejected = clean(args.rejected)
+        reason = clean(args.reason)
+    except ValueError as exc:
+        print(f"hstack-decisions: {exc}", file=sys.stderr)
+        return 2
+    stamp = dt.date.today().isoformat()
+    row = f"{stamp}\t{choice}\t{rejected}\t{reason}\n"
+    if args.dry_run:
+        sys.stdout.write(f"hstack-decisions: would append {row}")
+        return 0
+    path = Path(args.file)
+    if not path.exists():
+        path.write_text("date\tchoice\trejected\treason\n", encoding="utf-8")
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(row)
+    print(f"hstack-decisions: appended to {path}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

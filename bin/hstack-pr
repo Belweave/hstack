@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""One snapshot of a GitHub pull request.
+
+Each invocation runs gh once and exits. Schedule another look with the
+session's own loop. This script does not sleep.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+
+
+PREVIEW_HOSTS = (
+    "vercel.app",
+    "netlify.app",
+    "pages.dev",
+    "github.io",
+    "herokuapp.com",
+    "fly.dev",
+    "onrender.com",
+)
+
+
+def run_gh(args: list[str], dry_run: bool) -> int:
+    command = ["gh", *args]
+    shown = " ".join(command)
+    if dry_run:
+        print(f"hstack-pr: would run {shown}")
+        return 0
+    if shutil.which("gh") is None:
+        print("hstack-pr: gh is not on PATH", file=sys.stderr)
+        return 2
+    completed = subprocess.run(command)
+    return completed.returncode
+
+
+def preview(number: str, dry_run: bool) -> int:
+    target = [number] if number else []
+    if dry_run:
+        print("hstack-pr: would read preview URLs from gh pr view --json comments,url")
+        return 0
+    if shutil.which("gh") is None:
+        print("hstack-pr: gh is not on PATH", file=sys.stderr)
+        return 2
+    completed = subprocess.run(
+        ["gh", "pr", "view", *target, "--json", "comments,url"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        sys.stderr.write(completed.stderr)
+        return completed.returncode
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        print("hstack-pr: gh did not return JSON", file=sys.stderr)
+        return 1
+    blob = json.dumps(payload)
+    found: list[str] = []
+    token = ""
+    for chunk in blob.replace("\\n", " ").replace('"', " ").split():
+        if chunk.startswith("https://") or chunk.startswith("http://"):
+            token = chunk.rstrip(".,)")
+            host = token.split("/")[2] if "//" in token else ""
+            if any(host.endswith(name) for name in PREVIEW_HOSTS):
+                if token not in found:
+                    found.append(token)
+    if not found:
+        print("hstack-pr: no preview URL in the pull request comments")
+        return 0
+    for url in found:
+        print(url)
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="hstack-pr")
+    parser.add_argument("--dry-run", action="store_true")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    for name in ("status", "checks", "comments", "preview"):
+        command = sub.add_parser(name)
+        command.add_argument("number", nargs="?", default="")
+    args = parser.parse_args()
+    number = args.number
+    target = [number] if number else []
+    if args.cmd == "status":
+        return run_gh(["pr", "view", *target], args.dry_run)
+    if args.cmd == "checks":
+        return run_gh(["pr", "checks", *target], args.dry_run)
+    if args.cmd == "comments":
+        return run_gh(["pr", "view", *target, "--comments"], args.dry_run)
+    return preview(number, args.dry_run)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

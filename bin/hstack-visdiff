@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Compare two PNG files and write a difference image when it can.
+
+Uses Pillow when it is installed. Otherwise odiff (MIT) or ImageMagick
+(Apache-2.0) if one of those is already on PATH. This script does not
+install either of them.
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def with_pillow(left: Path, right: Path, output: Path) -> int:
+    from PIL import Image, ImageChops
+
+    before = Image.open(left).convert("RGB")
+    after = Image.open(right).convert("RGB")
+    if before.size != after.size:
+        print(f"hstack-visdiff: size {before.size[0]}x{before.size[1]} vs {after.size[0]}x{after.size[1]}")
+        return 1
+    diff = ImageChops.difference(before, after)
+    pixels = list(diff.getdata())
+    total = 0
+    changed = 0
+    for red, green, blue in pixels:
+        total += red + green + blue
+        if red or green or blue:
+            changed += 1
+    mean = total / (len(pixels) * 3) if pixels else 0
+    output.parent.mkdir(parents=True, exist_ok=True)
+    diff.save(output)
+    print(f"changed_pixels {changed}")
+    print(f"mean_channel_delta {mean:.4f}")
+    print(f"diff {output}")
+    return 1 if changed else 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="hstack-visdiff")
+    parser.add_argument("left")
+    parser.add_argument("right")
+    parser.add_argument("--output", default="hstack-visdiff.png")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    left = Path(args.left)
+    right = Path(args.right)
+    output = Path(args.output)
+    if args.dry_run:
+        print(f"hstack-visdiff: would compare {left} {right} -> {output}")
+        return 0
+    if not left.is_file() or not right.is_file():
+        print("hstack-visdiff: both inputs must be files", file=sys.stderr)
+        return 2
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        return with_pillow(left, right, output)
+    if shutil.which("odiff"):
+        completed = subprocess.run(["odiff", str(left), str(right), str(output)])
+        return completed.returncode
+    if shutil.which("magick"):
+        completed = subprocess.run(["magick", "compare", "-metric", "AE", str(left), str(right), str(output)])
+        return 0 if completed.returncode == 0 else 1
+    print(
+        "hstack-visdiff: install Pillow, odiff, or ImageMagick to compare pixels. Nothing was downloaded.",
+        file=sys.stderr,
+    )
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

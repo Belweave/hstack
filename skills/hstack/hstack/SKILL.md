@@ -23,19 +23,6 @@ A one-line edit does not need a playbook.
 
 Restate the goal in one sentence. If the evidence says the requested change is the wrong change, say so and stop.
 
-Load one playbook and follow it. Do not load the others.
+Load the catalog with `skill_view("hstack", "references/routes.md")`. Pick one row. If the user only asked which playbook fits, name that file and stop.
 
-- Deciding what to build: `skill_view("hstack", "references/frame.md")`
-- New or changed behavior: `skill_view("hstack", "references/feature.md")`
-- Something is broken: `skill_view("hstack", "references/fix.md")`
-- The diff needs a hard look: `skill_view("hstack", "references/check.md")`
-- The work should become a pull request: `skill_view("hstack", "references/land.md")`
-
-Say which playbook you loaded.
-
-These jobs are not playbooks:
-
-- A throwaway experiment: bundled `spike`.
-- Worktree cleanup: `/worktree`.
-- Multi-phase work: Kanban or `/goal`.
-- Writing a skill: bundled `hermes-agent-skill-authoring` and `/learn`.
+Load that one playbook with `skill_view("hstack", "references/<file>")`. Do not load a second playbook. Say which file you loaded.

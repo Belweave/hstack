@@ -26,7 +26,7 @@ curl -fsSL https://hstack.sh/install | sh
 
 From a checkout of this repo, `sh install.sh` installs that checkout. A second run replaces the HStack skills and leaves every other skill alone. Pass `--dry-run` to print the plan and write nothing.
 
-Skills land in `~/.hermes/skills/hstack/`. Set `HERMES_HOME` if Hermes lives somewhere else. The shell script is for macOS and Linux. On Windows, copy `skills/hstack` into the Hermes skills directory.
+Skills land in `~/.hermes/skills/hstack/`. Set `HERMES_HOME` if Hermes lives somewhere else. `install.sh` is for macOS and Linux. On Windows, `install.ps1` takes the same flags. WSL can run `install.sh`.
 
 ## Why this instead of GStack
 
@@ -66,13 +66,40 @@ The planning path is `hstack`, `reframe`, and `shape`. 2,500 against 62,514 is a
 
 `/hstack` is the one to remember. Name another skill when you already know which step you want. Playbooks live under `skills/hstack/hstack/references/` and load one at a time.
 
+## Parity
+
+[PARITY.md](PARITY.md) has one row for every GStack, TStack, and PStack feature. 520 rows: 67 skills, 260 playbooks loaded on demand, 3 Hermes tools, 15 helper scripts, and 175 deliberate skips. The idle index stays at 204 tokens. The cost of a route is what loads when that route fires, and it is listed beside that idle number.
+
+## Integrations
+
+A default install is skills only. Optional addons stay off until you name them.
+
+```sh
+sh install.sh --with browser,github,docs,search,perf,test,security,trail
+sh install.sh --dry-run --with browser
+sh install.sh --uninstall --with browser
+```
+
+| Flag | What you get |
+|---|---|
+| `browser` | Playwright MCP at `@playwright/mcp@0.0.83`, plus `hstack-visdiff` |
+| `github` | `hstack-pr`, one `gh` snapshot |
+| `docs` | Context7 MCP, URL only |
+| `search` | DeepWiki MCP, URL only |
+| `perf` | `hstack-bench` |
+| `test` | `hstack-test` |
+| `security` | `hstack-scan`, only if gitleaks or osv-scanner is already installed |
+| `trail` | `hstack-decisions` |
+
+Helpers are copied to `$HERMES_HOME/hstack/bin`. MCP entries use an `hstack_` prefix in `config.yaml`. `--dry-run` writes nothing. `--uninstall` removes the skills and every addon this installer created. `--uninstall --with browser` removes only that addon. The installer does not download Playwright, gitleaks, or osv-scanner.
+
 ## Uninstall
 
 ```sh
 curl -fsSL https://hstack.sh/install | sh -s -- --uninstall
 ```
 
-From a checkout: `sh install.sh --uninstall`. This removes `skills/hstack` only when this installer created it.
+From a checkout: `sh install.sh --uninstall`. This removes `skills/hstack` only when this installer created it, and it removes addons this installer created.
 
 ---
 

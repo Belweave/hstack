@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+"""Run the test command this repo already uses.
+
+Detection order: pytest, npm test, cargo test, go test, make test.
+The first match wins. This does not install a runner.
+"""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def detect(root: Path) -> list[str] | None:
+    if (root / "pytest.ini").is_file() or (root / "pyproject.toml").is_file() or (root / "setup.py").is_file():
+        if shutil.which("pytest"):
+            return ["pytest", "-q"]
+        return [sys.executable, "-m", "pytest", "-q"]
+    if (root / "package.json").is_file():
+        return ["npm", "test"]
+    if (root / "Cargo.toml").is_file():
+        return ["cargo", "test"]
+    if (root / "go.mod").is_file():
+        return ["go", "test", "./..."]
+    makefile = root / "Makefile"
+    if makefile.is_file() and "test:" in makefile.read_text(encoding="utf-8", errors="replace"):
+        return ["make", "test"]
+    return None
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="hstack-test")
+    parser.add_argument("--root", default=".")
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    root = Path(args.root).resolve()
+    command = detect(root)
+    if command is None:
+        print(f"hstack-test: no test command detected in {root}", file=sys.stderr)
+        return 2
+    shown = " ".join(command)
+    if args.dry_run:
+        print(f"hstack-test: would run {shown}")
+        return 0
+    completed = subprocess.run(command, cwd=root)
+    return completed.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

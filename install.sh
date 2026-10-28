@@ -11,16 +11,20 @@ set -eu
 
 DRY=0
 UNINSTALL=0
+WITH=
 WORK=
 STAGE=
+ADDON_ROOT=
 
 usage() {
   printf '%s\n' \
-    'Usage: sh install.sh [--dry-run] [--uninstall]' \
+    'Usage: sh install.sh [--dry-run] [--uninstall] [--with name,name]' \
     '       curl -fsSL https://hstack.sh/install | sh' \
     '       curl -fsSL https://hstack.sh/install | sh -s -- --uninstall' \
     '' \
     'Installs into the Hermes home, at skills/hstack. The usual home is .hermes in your home directory.' \
+    'The default install is skills only. --with adds an optional addon:' \
+    'browser, github, docs, search, perf, test, security, trail.' \
     'HSTACK_REF selects the git branch when the script downloads (default: main).' \
     'Running this file from a git checkout installs that checkout.'
 }
@@ -47,14 +51,51 @@ cleanup() {
 
 trap cleanup EXIT
 
-for arg in "$@"; do
-  case "$arg" in
-    --dry-run) DRY=1 ;;
-    --uninstall) UNINSTALL=1 ;;
+addon_ok() {
+  case "$1" in
+    browser|github|docs|search|perf|test|security|trail) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
     --help|-h) usage; exit 0 ;;
-    *) die "unknown argument: $arg" ;;
+    --with=*)
+      _with_val=${1#--with=}
+      if [ -z "$_with_val" ]; then
+        die "--with needs a comma-separated list"
+      fi
+      WITH="${WITH:+$WITH,}${_with_val}"
+      shift
+      ;;
+    --with)
+      shift
+      if [ $# -eq 0 ]; then
+        die "--with needs a comma-separated list"
+      fi
+      WITH="${WITH:+$WITH,}$1"
+      shift
+      ;;
+    *) die "unknown argument: $1" ;;
   esac
 done
+
+if [ -n "$WITH" ]; then
+  _rest=$WITH
+  while [ -n "$_rest" ]; do
+    _addon=${_rest%%,*}
+    case "$_rest" in
+      *,*) _rest=${_rest#*,} ;;
+      *) _rest= ;;
+    esac
+    if [ -z "$_addon" ] || ! addon_ok "$_addon"; then
+      die "unknown addon: ${_addon:-empty}"
+    fi
+  done
+fi
 
 if [ -z "${HOME:-}" ]; then
   die "HOME is not set"
@@ -125,20 +166,79 @@ dir_nonempty() {
   return "$_found"
 }
 
+script=$0
+SCRIPT_DIR=
+if [ -f "$script" ]; then
+  SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$script")" && pwd -P)
+fi
+
+run_addons() {
+  _mode=$1
+  if [ "$_mode" != uninstall ] && [ -z "$WITH" ]; then
+    return 0
+  fi
+  if [ "$_mode" = uninstall ] && [ -z "$WITH" ] && [ ! -e "$HERMES_HOME/hstack" ]; then
+    return 0
+  fi
+  command -v python3 >/dev/null 2>&1 || die "python3 is required for addons"
+  _py=
+  if [ -n "$ADDON_ROOT" ] && [ -f "$ADDON_ROOT/scripts/apply_addons.py" ]; then
+    _py=$ADDON_ROOT/scripts/apply_addons.py
+  elif [ -f "$HERMES_HOME/hstack/apply_addons.py" ]; then
+    _py=$HERMES_HOME/hstack/apply_addons.py
+  elif [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/scripts/apply_addons.py" ]; then
+    _py=$SCRIPT_DIR/scripts/apply_addons.py
+  fi
+  if [ -z "$_py" ]; then
+    if [ "$_mode" = uninstall ] && [ ! -d "$HERMES_HOME/hstack" ]; then
+      return 0
+    fi
+    if [ "$DRY" -eq 1 ]; then
+      say "dry-run: would configure addons: ${WITH:-all}"
+      return 0
+    fi
+    die "missing scripts/apply_addons.py"
+  fi
+  _source=$ADDON_ROOT
+  if [ -z "$_source" ] && [ -n "$SCRIPT_DIR" ]; then
+    _source=$SCRIPT_DIR
+  fi
+  set -- python3 "$_py" --hermes-home "$HERMES_HOME"
+  if [ -n "$_source" ]; then
+    set -- "$@" --source "$_source"
+  fi
+  if [ "$DRY" -eq 1 ]; then
+    set -- "$@" --dry-run
+  fi
+  if [ "$_mode" = uninstall ]; then
+    set -- "$@" --uninstall
+  fi
+  if [ -n "$WITH" ]; then
+    set -- "$@" --with "$WITH"
+  fi
+  "$@"
+}
+
+if [ "$UNINSTALL" -eq 1 ] && [ -n "$WITH" ]; then
+  run_addons uninstall
+  exit 0
+fi
+
 if [ "$UNINSTALL" -eq 1 ]; then
   if [ ! -d "$DEST" ]; then
     say "nothing to remove at $DEST"
-    exit 0
+  else
+    if [ ! -f "$MARKER" ] || [ -L "$MARKER" ]; then
+      die "refusing to remove $DEST (missing .hstack-managed)"
+    fi
+    if [ "$DRY" -eq 1 ]; then
+      say "dry-run: would remove $DEST"
+    else
+      rm -rf "$DEST"
+      say "removed $DEST"
+    fi
   fi
-  if [ ! -f "$MARKER" ] || [ -L "$MARKER" ]; then
-    die "refusing to remove $DEST (missing .hstack-managed)"
-  fi
-  if [ "$DRY" -eq 1 ]; then
-    say "dry-run: would remove $DEST"
-    exit 0
-  fi
-  rm -rf "$DEST"
-  say "removed $DEST"
+  run_addons uninstall
   exit 0
 fi
 
@@ -151,13 +251,10 @@ fi
 MODE=
 SRC=
 URL=
-script=$0
-if [ -f "$script" ]; then
-  script_dir=$(CDPATH='' cd "$(dirname "$script")" && pwd -P)
-  if [ -f "$script_dir/skills/hstack/hstack/SKILL.md" ]; then
-    MODE=local
-    SRC="$script_dir/skills/hstack"
-  fi
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/skills/hstack/hstack/SKILL.md" ]; then
+  MODE=local
+  SRC="$SCRIPT_DIR/skills/hstack"
+  ADDON_ROOT=$SCRIPT_DIR
 fi
 
 if [ -z "$MODE" ]; then
@@ -179,6 +276,7 @@ if [ "$DRY" -eq 1 ]; then
   else
     say "dry-run: would download $URL"
   fi
+  run_addons install
   exit 0
 fi
 
@@ -216,6 +314,7 @@ if [ "$MODE" = remote ]; then
     die "expected one top-level directory in the archive"
   fi
   SRC="$top/skills/hstack"
+  ADDON_ROOT=$top
   if [ ! -f "$SRC/hstack/SKILL.md" ]; then
     die "archive is missing skills/hstack/hstack/SKILL.md"
   fi
@@ -257,3 +356,4 @@ else
 fi
 
 say "installed into $DEST"
+run_addons install
